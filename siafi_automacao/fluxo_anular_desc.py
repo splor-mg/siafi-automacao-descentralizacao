@@ -94,7 +94,6 @@ def anulacao(em, data_row):
             break
 
     print(f"SIAFI retornou: {retorno}")
-    breakpoint()
     em.send_pf(3)  # envia F3
     em.wait_for_field()
 

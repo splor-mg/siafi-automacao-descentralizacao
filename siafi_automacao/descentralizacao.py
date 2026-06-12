@@ -4,6 +4,9 @@ from py3270 import Emulator
 from datetime import datetime
 import pandas as pd
 import openpyxl
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 import time
 from fluxo_anular_desc import anulacao
 from fluxo_aprovar_desc import aprovacao
@@ -15,11 +18,146 @@ unidade_executora = '1510010'
 month = datetime.today().strftime("%m")
 
 # Definição dos CAMINHOS
-# Cópia local de trabalho — onde o robô vai ler e salvar durante a execução... ele é criado a partir do original do OneDrive e só é salvo no final, para evitar conflitos de acesso com o OneDrive
-CAMINHO_LOCAL     = '/home/guilhermemelof/code/splor-mg/siafi-automacao/data/copia.xlsx'
+# Planilha consolidada gerada pelo consolida.py, lida e atualizada in-place
+# (a cada linha o retorno do SIAFI é gravado na coluna 'Progresso').
+CAMINHO_CONSOLIDADO = '/home/guilhermemelof/code/splor-mg/siafi-automacao-descentralizacao/data/consolidado.xlsx'
 
-#Nome da aba na planilha Excel onde estão os dados a serem processados
-SHEET_NAME = 'Descentraliza Cota Orcamentaria'
+# Nome da aba na planilha consolidada onde estão os dados a serem processados
+SHEET_NAME = 'Descentraliza Cota Orçamentaria'
+
+
+def salvar_progresso(df, caminho, sheet):
+    """Salva o DataFrame de volta na planilha de forma atômica, preservando
+    o que já foi gravado na coluna 'Progresso'."""
+    pasta = os.path.dirname(caminho)
+    tmp = os.path.join(pasta, '_tmp_consolidado.xlsx')
+    with pd.ExcelWriter(tmp, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=sheet, index=False)
+    os.replace(tmp, caminho)
+
+
+def traduzir_progresso(retorno):
+    """Converte a mensagem crua do SIAFI no texto que vai para a coluna
+    'Progresso'. Sucesso ('REGISTRO EFETUADO') vira 'Ok'; mensagens de erro
+    conhecidas viram um texto amigável; qualquer outro retorno é mantido como
+    veio, para nada ser escondido. Para incluir novas mensagens, basta
+    acrescentar uma linha no mapa abaixo."""
+    if retorno is None or (isinstance(retorno, str) and retorno.strip() == ''):
+        return ''
+    retorno = retorno.strip()
+
+    # Sucesso
+    if 'REGISTRO EFETUADO' in retorno.upper():
+        return 'Ok'
+
+    if retorno.startswith("E90 - SALDO ZERADO NA CONTA"):
+        return 'Saldo zerado na conta'
+
+    mapa = {
+        "0139- PROJ/ATIV OU FONTE/PROC./IAG INEXISTENTE PARA UO":
+            'Proj/Ativ ou Fonte/Proc./IAG inexistente para a UO',
+        "0101- NATUREZA DESPESA INEXISTENTE(S).":
+            'Natureza de despesa inexistente',
+        "0101- GRUPO DESPESA INEXISTENTE(S).":
+            'Grupo de despesa inexistente',
+        "0139- PROGRAMA DE TRABALHO NAO ENCONTRADO PARA GM/FP.":
+            'Programa de trabalho não encontrado para GM/FP',
+        "0109-INFORME NATUREZA DE DESPESA COMPLETA.":
+            'Informe a natureza de despesa completa',
+        "0139- NAO EXITE DESCENTRALIZACAO PARA PROJ/ATIV OU FONTE/PROC./IAG":
+            'Não existe descentralização para Proj/Ativ ou Fonte/Proc./IAG',
+        "0139- SALDO INEXISTENTE A ANULAR PARA PROJ/ATIV":
+            'Saldo inexistente a anular para Proj/Ativ',
+        "0139- VALOR A APROVAR MAIOR QUE SALDO DISPONIVEL NO PROJ/ATIV.":
+            'Valor a aprovar maior que o saldo disponível',
+        "SALDO DE CREDITO ORCAMENTARIO A APROVAR POR PROJ/ATIV ZERADO.":
+            'Saldo de crédito a aprovar zerado',
+        "0139- VALOR A DESCENTRALIZAR MAIOR QUE SALDO APROVADO.":
+            'Valor a descentralizar maior que o saldo aprovado',
+        "0139- VALOR INFORMADO ALEM DO VALOR DESCENTRALIZADO PARA O PROJETO/ATIVIDADE":
+            'Valor informado além do valor descentralizado',
+    }
+    return mapa.get(retorno, retorno)
+
+
+def formatar_planilha(ws):
+    """Aplica formatação visual gerencial na aba: cabeçalho colorido, coluna
+    'Valor' no formato xxx.xxx,xx, zebra nas linhas, coluna 'Progresso' com cor
+    condicional (Ok = verde, erros = vermelho/amarelo) e larguras ajustadas."""
+    AZUL_ESCURO  = PatternFill('solid', fgColor='1F4E79')
+    AZUL_CLARO   = PatternFill('solid', fgColor='D6E4F0')
+    BRANCO       = PatternFill('solid', fgColor='FFFFFF')
+    VERDE        = PatternFill('solid', fgColor='C6EFCE')
+    AMARELO      = PatternFill('solid', fgColor='FFEB9C')
+    VERMELHO     = PatternFill('solid', fgColor='FFC7CE')
+    FONTE_BRANCA = Font(bold=True, color='FFFFFF', name='Calibri', size=11)
+    FONTE_NORMAL = Font(name='Calibri', size=10)
+    BORDA = Border(
+        left=Side(style='thin', color='BFBFBF'),
+        right=Side(style='thin', color='BFBFBF'),
+        top=Side(style='thin', color='BFBFBF'),
+        bottom=Side(style='thin', color='BFBFBF'),
+    )
+    COLS_VALOR = {'Valor'}
+
+    max_col = ws.max_column
+    max_row = ws.max_row
+
+    # Mapeia nome da coluna -> índice
+    cabec = {ws.cell(row=1, column=c).value: c for c in range(1, max_col + 1)}
+
+    # Remove linhas de grade
+    ws.sheet_view.showGridLines = False
+
+    # Cabeçalho
+    for c in range(1, max_col + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.fill   = AZUL_ESCURO
+        cell.font   = FONTE_BRANCA
+        cell.border = BORDA
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=False)
+    ws.row_dimensions[1].height = 20
+
+    # Linhas de dados
+    for r in range(2, max_row + 1):
+        zebra = AZUL_CLARO if r % 2 == 0 else BRANCO
+        for c in range(1, max_col + 1):
+            cell      = ws.cell(row=r, column=c)
+            cell.fill = zebra
+            cell.font = FONTE_NORMAL
+            cell.border = BORDA
+
+            col_nome = ws.cell(row=1, column=c).value
+
+            # Formata a coluna de valor monetário no padrão xxx.xxx,xx
+            if col_nome in COLS_VALOR and cell.value not in (None, ''):
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='right', vertical='center')
+            else:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+
+        # Cor condicional na coluna Progresso
+        if 'Progresso' in cabec:
+            prog_cell = ws.cell(row=r, column=cabec['Progresso'])
+            valor = (prog_cell.value or '').strip()
+            if valor == 'Ok':
+                prog_cell.fill = VERDE
+            elif valor != '':
+                prog_cell.fill = VERMELHO if 'zerado' in valor.lower() or 'maior' in valor.lower() or 'inexistente' in valor.lower() else AMARELO
+
+    # Congela a primeira linha
+    ws.freeze_panes = 'A2'
+
+    # Ajusta largura: usa o maior entre o título do cabeçalho e o conteúdo
+    for c in range(1, max_col + 1):
+        col_letter = get_column_letter(c)
+        max_len = 0
+        for r in range(1, max_row + 1):
+            val = ws.cell(row=r, column=c).value
+            if val is not None:
+                max_len = max(max_len, len(str(val)))
+        ws.column_dimensions[col_letter].width = min(max(max_len + 4, 10), 50)
+
 
 em = Emulator(visible=True) ##caso queira que a tela apareça utilize visible=True
 em.connect('bhmvsb.prodemge.gov.br')
@@ -39,7 +177,7 @@ while tentativas < max_tentativas:
     time.sleep(1)
 
     try:
-        em.wait_for_field()
+        em.send_enter()
 
         # Tela COM campo editável — verifica se é a tela de sucesso
         if em.string_found(1, 13, 'Logon executado com sucesso'):
@@ -72,7 +210,7 @@ while tentativas < max_tentativas:
     time.sleep(1)
 
     try:
-        em.wait_for_field()
+        em.send_enter()
 
         # Tela COM campo editável — verifica se é a tela de sucesso
         if em.string_found(22, 11, 'Unidade Executora'):
@@ -114,16 +252,19 @@ em.wait_for_field()
 # Leitura da planilha e processamento dos dados
 
 # -----------------------------------------------------------------------
-# ETAPA 3: leitura da cópia LOCAL (não do OneDrive)
+# ETAPA 3: leitura da planilha consolidada
 # -----------------------------------------------------------------------
-df = pd.read_excel(CAMINHO_LOCAL, sheet_name=SHEET_NAME)
+df = pd.read_excel(CAMINHO_CONSOLIDADO, sheet_name=SHEET_NAME)
 df = df.dropna(how='all')  # remove linhas completamente vazias
-df = df.sort_values(by=['Orientacao'], ascending=[True]) # ordena por anulação
-df = df.reset_index(drop=False)
+df = df.reset_index(drop=True)
 
-# O loop agora usa "for idx, row" em vez de "for _, row".
-# O idx é o índice real da linha no DataFrame e é necessário para que o
-# df.at[idx, 'Progresso'] grave o retorno na linha correta em memória.
+# Garante que a coluna 'Progresso' exista e aceite texto (retorno do SIAFI)
+if 'Progresso' not in df.columns:
+    df['Progresso'] = pd.NA
+df['Progresso'] = df['Progresso'].astype('object')
+
+# O loop usa "for idx, row" para que o df.at[idx, 'Progresso'] grave o retorno
+# na linha correta em memória (e depois em disco).
 for idx, row in df.iterrows():
     data_row = {}
     data_row['month']   = month
@@ -150,7 +291,7 @@ for idx, row in df.iterrows():
     data_row['item'] = str(int(row['Item'])) if pd.notna(row['Item']) else '0'
     data_row['uo_financiadora'] = str(int(row['UO_Financiadora'])) if pd.notna(row['UO_Financiadora']) else '0'
     data_row['iag'] = str(int(row['IAG']))
-    data_row['valor'] = int(round(float(row['Valor']), 2) * 100)
+    data_row['valor'] = int(round(float(row['Valor']) * 100))
 
     # Criação da Variável de Retorno para armazenar o resultado do processamento de cada linha
     retorno = ''
@@ -173,5 +314,20 @@ for idx, row in df.iterrows():
         retorno = anulacao(em, data_row)
     elif data_row['orientacao'] == 'Aprovar':
         retorno = aprovacao(em, data_row)
+
+    # Traduz o retorno do SIAFI e grava na coluna 'Progresso', salvando
+    # imediatamente para não perder o que já foi processado caso pare no meio.
+    df.at[idx, 'Progresso'] = traduzir_progresso(retorno)
+    salvar_progresso(df, CAMINHO_CONSOLIDADO, SHEET_NAME)
+
+# Salvamento final (redundante com o incremental, mas garante o estado completo)
+salvar_progresso(df, CAMINHO_CONSOLIDADO, SHEET_NAME)
+
+# Aplica a formatação visual na planilha salva
+wb = load_workbook(CAMINHO_CONSOLIDADO)
+ws = wb[SHEET_NAME] if SHEET_NAME in wb.sheetnames else wb.active
+formatar_planilha(ws)
+wb.save(CAMINHO_CONSOLIDADO)
+print(f"Progresso gravado e planilha formatada em: {CAMINHO_CONSOLIDADO}")
 
 em.terminate()

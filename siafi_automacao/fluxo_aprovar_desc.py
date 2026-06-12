@@ -2,7 +2,6 @@ import time
 
 def aprovacao(em, data_row):
     ## Verifica se é anulação ou aprovação e preencche 03-1 para aprovação e 04-1 para anulação
-    
     # Movimentação de tela
     em.fill_field(21, 19, '01', 2)
     em.fill_field(21, 41, '1', 1)
