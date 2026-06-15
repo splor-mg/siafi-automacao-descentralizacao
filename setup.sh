@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
+# shellcheck disable=SC2086
 set -euo pipefail
 
 REPO_DIR="$HOME/code/splor-mg/siafi-automacao-descentralizacao"
@@ -19,14 +20,75 @@ to_wsl_path() {
     printf '%s' "$p"
 }
 
+# Codifica para URL (percent-encoding) — usado na senha do proxy, que pode
+# conter caracteres especiais como '@', ':' etc.
+urlencode() {
+    local s="$1" out="" c hex i
+    for (( i=0; i<${#s}; i++ )); do
+        c="${s:$i:1}"
+        case "$c" in
+            [a-zA-Z0-9.~_-]) out+="$c" ;;
+            *) printf -v hex '%%%02X' "'$c"; out+="$hex" ;;
+        esac
+    done
+    printf '%s' "$out"
+}
+
 echo ""
 echo "=== Configurando ambiente Ubuntu para o robô SIAFI (Descentralização) ==="
 echo ""
 
 # -------------------------------------------------------------------
-# 1. Dependências do sistema
+# 1. Rede: proxy do PRODEMGE (apt, git, pip) + certificado SSL
 # -------------------------------------------------------------------
-echo "[1/5] Instalando dependências do sistema..."
+echo "[1/6] Configurando acesso à rede (proxy PRODEMGE)..."
+
+# Flags que serão aplicadas ao pip mais à frente (vazias se não usar proxy).
+PIP_PROXY=""
+PIP_TRUSTED=""
+
+read -rp "  Está na rede da CAMG/PRODEMGE e precisa de proxy? [S/n]: " _usar_proxy
+_usar_proxy="${_usar_proxy:-S}"
+
+if [[ "$_usar_proxy" =~ ^[Ss] ]]; then
+    PROXY_HOST="proxycamg.prodemge.gov.br:8080"
+
+    read -rp  "  Usuário do proxy (matrícula): " PXUSER
+    read -rsp "  Senha do proxy (não aparece): " PXPASS; echo ""
+
+    PXUSER_ENC=$(urlencode "$PXUSER")
+    PXPASS_ENC=$(urlencode "$PXPASS")
+    PROXY_URL="http://${PXUSER_ENC}:${PXPASS_ENC}@${PROXY_HOST}"
+
+    # Variáveis de ambiente (valem para git, curl, pip nesta sessão)
+    export http_proxy="$PROXY_URL"  https_proxy="$PROXY_URL"
+    export HTTP_PROXY="$PROXY_URL"  HTTPS_PROXY="$PROXY_URL"
+    export no_proxy="localhost,127.0.0.1"
+
+    # apt via proxy (os pacotes do Ubuntu vêm por HTTP — só precisa do proxy).
+    # Arquivo só legível pelo root, pois contém a senha.
+    echo "Acquire::http::Proxy \"$PROXY_URL\";
+Acquire::https::Proxy \"$PROXY_URL\";" | sudo tee /etc/apt/apt.conf.d/95proxy >/dev/null
+    sudo chmod 600 /etc/apt/apt.conf.d/95proxy
+
+    # git: usa o proxy (via env acima) e ignora a validação do certificado,
+    # já que o proxy intercepta o SSL. GIT_SSL_NO_VERIFY é temporário (só esta sessão).
+    export GIT_SSL_NO_VERIFY=true
+
+    # pip: atravessa o proxy e confia nos hosts do PyPI (o proxy quebra o certificado).
+    PIP_PROXY="--proxy $PROXY_URL"
+    PIP_TRUSTED="--trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host pypi.python.org"
+
+    echo "  Proxy configurado."
+else
+    echo "  Sem proxy (rede aberta)."
+fi
+echo ""
+
+# -------------------------------------------------------------------
+# 2. Dependências do sistema
+# -------------------------------------------------------------------
+echo "[2/6] Instalando dependências do sistema..."
 sudo apt-get update -q
 sudo apt-get install -y --no-install-recommends \
     s3270 x3270 \
@@ -34,10 +96,10 @@ sudo apt-get install -y --no-install-recommends \
     git
 
 # -------------------------------------------------------------------
-# 2. Clone do repositório (filesystem Linux — melhor performance que /mnt/c/)
+# 3. Clone do repositório (filesystem Linux — melhor performance que /mnt/c/)
 # -------------------------------------------------------------------
 echo ""
-echo "[2/5] Clonando repositório..."
+echo "[3/6] Clonando repositório..."
 if [ ! -d "$REPO_DIR/.git" ]; then
     mkdir -p "$HOME/code/splor-mg"
 
@@ -58,10 +120,10 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 3. Ambiente virtual Python + dependências
+# 4. Ambiente virtual Python + dependências
 # -------------------------------------------------------------------
 echo ""
-echo "[3/5] Configurando ambiente virtual Python..."
+echo "[4/6] Configurando ambiente virtual Python..."
 cd "$REPO_DIR"
 
 if [ ! -d "venv" ]; then
@@ -69,14 +131,14 @@ if [ ! -d "venv" ]; then
 fi
 
 source venv/bin/activate
-pip install --quiet -r requirements.txt
+pip install --quiet ${PIP_PROXY} ${PIP_TRUSTED} -r requirements.txt
 echo "Dependências Python instaladas."
 
 # -------------------------------------------------------------------
-# 4. Aviso WSLg (necessário para visible=True no x3270)
+# 5. Aviso WSLg (necessário para visible=True no x3270)
 # -------------------------------------------------------------------
 echo ""
-echo "[4/5] Verificando suporte a interface gráfica (WSLg)..."
+echo "[5/6] Verificando suporte a interface gráfica (WSLg)..."
 if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
     echo ""
     echo "AVISO: WSLg não detectado nesta sessão."
@@ -89,10 +151,10 @@ else
 fi
 
 # -------------------------------------------------------------------
-# 5. Variáveis de ambiente (.env)
+# 6. Variáveis de ambiente (.env)
 # -------------------------------------------------------------------
 echo ""
-echo "[5/5] Configurando variáveis de ambiente..."
+echo "[6/6] Configurando variáveis de ambiente..."
 
 # Garantir que .env existe com permissões restritas
 if [ ! -f ".env" ]; then

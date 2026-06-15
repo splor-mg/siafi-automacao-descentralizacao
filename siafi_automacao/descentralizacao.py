@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 from py3270 import Emulator
 from datetime import datetime
@@ -227,6 +228,16 @@ em.fill_field(19, 13, sistema, 7)
 em.fill_field(20, 13, usuario, 8)
 em.fill_field(21, 13, senha, 7)
 em.send_enter()
+
+if em.string_found(23, 1, 'Senha expirada. Digite Nova Senha.'):
+    print("")
+    print("=" * 70)
+    print("Senha expirada. Abra o SIAFI manualmente e atualize sua senha.")
+    print("Apos isso, salve a nova senha no arquivo .env e execute o script novamente.")
+    print("=" * 70)
+    em.terminate()
+    # Codigo 3: sinaliza ao robo.ps1 para abrir o .env e pedir a nova senha
+    sys.exit(3)
 
 # Loop: navega pelas telas até encontrar a mensagem de sucesso
 max_tentativas = 10
