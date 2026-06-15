@@ -29,6 +29,11 @@ if (-not (Test-SetupDone)) {
     exit 1
 }
 
+# Atualiza o robo (git pull) para que toda alteracao do fluxo se propague a
+# todos os computadores. Falha de rede/git nao impede a execucao com a versao local.
+Write-Host "Atualizando o robo (git pull)..." -ForegroundColor Cyan
+wsl -d Ubuntu -- bash -c "cd ~/code/splor-mg/siafi-automacao-descentralizacao && git pull --ff-only 2>&1 || echo '[aviso] Nao foi possivel atualizar (git pull); seguindo com a versao local.'"
+
 Write-Host "Trazendo as planilhas do OneDrive e consolidando..." -ForegroundColor Cyan
 wsl -d Ubuntu -- bash -c "cd ~/code/splor-mg/siafi-automacao-descentralizacao && source venv/bin/activate && PYTHONIOENCODING=utf-8 python consolida.py"
 

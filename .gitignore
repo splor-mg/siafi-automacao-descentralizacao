@@ -195,3 +195,6 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode
 # Sentinela local de instalação (não versionar)
 .setup_done
+
+# Pasta de trabalho local — planilhas processadas em cada máquina (não versionar)
+data/
