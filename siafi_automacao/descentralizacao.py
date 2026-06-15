@@ -8,22 +8,81 @@ from openpyxl import load_workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import time
+from dotenv import load_dotenv
 from fluxo_anular_desc import anulacao
 from fluxo_aprovar_desc import aprovacao
 
+# Carrega as credenciais do arquivo .env (na raiz do repositório)
+load_dotenv()
+
 sistema = 'simg'
-usuario = 'm1241897'
-senha = 'Pc0987'
-unidade_executora = '1510010'
+usuario           = os.getenv('USUARIO')
+senha             = os.getenv('SENHA')
+unidade_executora = os.getenv('UNIDADE_EXECUTORA')
 month = datetime.today().strftime("%m")
 
 # Definição dos CAMINHOS
-# Planilha consolidada gerada pelo consolida.py, lida e atualizada in-place
-# (a cada linha o retorno do SIAFI é gravado na coluna 'Progresso').
-CAMINHO_CONSOLIDADO = '/home/guilhermemelof/code/splor-mg/siafi-automacao-descentralizacao/data/consolidado.xlsx'
+# Raiz do repositório, derivada da localização deste script
+# (siafi_automacao/descentralizacao.py -> sobe um nível).
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Pasta de trabalho local (Linux). Vem do .env (PASTA_LINUX); se ausente,
+# usa a pasta 'data' na raiz do repositório.
+DATA = os.getenv('PASTA_LINUX') or os.path.join(BASE_DIR, 'data')
+
+# Pasta-raiz do projeto no Windows/OneDrive (via /mnt/c). Vem do .env
+# (PASTA_WINDOWS). A subpasta "Conferencia" guarda o arquivo gerado pelo
+# consolida.py, que é trazido para cá, processado, e devolvido ao final.
+PASTA_WINDOWS = os.getenv('PASTA_WINDOWS')
+SUB_CONFERENCIA = 'Conferencia'
+
+# CAMINHO_CONSOLIDADO é definido em tempo de execução por
+# preparar_arquivo_para_processar() (o nome do arquivo varia por dia).
+CAMINHO_CONSOLIDADO = None
 
 # Nome da aba na planilha consolidada onde estão os dados a serem processados
-SHEET_NAME = 'Descentraliza Cota Orçamentaria'
+SHEET_NAME = 'Execucao'
+
+
+def preparar_arquivo_para_processar():
+    """Traz o arquivo de conferência (gerado pelo consolida.py) da pasta
+    Conferencia (Windows/OneDrive) para a pasta local de trabalho (DATA) e
+    devolve (caminho_local, nome_arquivo). Trabalhar no filesystem Linux torna
+    os salvamentos de progresso rápidos e evita locks do OneDrive.
+    Em modo local (sem PASTA_WINDOWS) usa DATA/consolidado.xlsx."""
+    os.makedirs(DATA, exist_ok=True)
+
+    if not PASTA_WINDOWS:
+        return os.path.join(DATA, 'consolidado.xlsx'), None
+
+    conf_dir = os.path.join(PASTA_WINDOWS, SUB_CONFERENCIA)
+    xlsxs = []
+    if os.path.isdir(conf_dir):
+        xlsxs = [f for f in os.listdir(conf_dir)
+                 if f.lower().endswith('.xlsx') and not f.startswith('~$')]
+    if not xlsxs:
+        raise FileNotFoundError(
+            f'Nenhum arquivo de conferência em "{conf_dir}". '
+            f'Rode o consolida.py antes do descentralizacao.py.')
+
+    # Mais recente (caso haja mais de um do dia)
+    xlsxs.sort(key=lambda f: os.path.getmtime(os.path.join(conf_dir, f)))
+    nome = xlsxs[-1]
+    destino_local = os.path.join(DATA, nome)
+    shutil.move(os.path.join(conf_dir, nome), destino_local)
+    print(f'Arquivo de conferência trazido para processamento local: {nome}')
+    return destino_local, nome
+
+
+def devolver_arquivo_processado(caminho_local, nome):
+    """Devolve o arquivo já processado para a pasta Conferencia (Windows)."""
+    if not (PASTA_WINDOWS and nome):
+        return
+    conf_dir = os.path.join(PASTA_WINDOWS, SUB_CONFERENCIA)
+    os.makedirs(conf_dir, exist_ok=True)
+    destino = os.path.join(conf_dir, nome)
+    shutil.move(caminho_local, destino)
+    print(f'Arquivo processado devolvido para: {destino}')
 
 
 def salvar_progresso(df, caminho, sheet):
@@ -254,6 +313,9 @@ em.wait_for_field()
 # -----------------------------------------------------------------------
 # ETAPA 3: leitura da planilha consolidada
 # -----------------------------------------------------------------------
+# Traz o arquivo de conferência do Windows/OneDrive para a pasta local
+CAMINHO_CONSOLIDADO, _nome_conferencia = preparar_arquivo_para_processar()
+
 df = pd.read_excel(CAMINHO_CONSOLIDADO, sheet_name=SHEET_NAME)
 df = df.dropna(how='all')  # remove linhas completamente vazias
 df = df.reset_index(drop=True)
@@ -329,5 +391,8 @@ ws = wb[SHEET_NAME] if SHEET_NAME in wb.sheetnames else wb.active
 formatar_planilha(ws)
 wb.save(CAMINHO_CONSOLIDADO)
 print(f"Progresso gravado e planilha formatada em: {CAMINHO_CONSOLIDADO}")
+
+# Devolve o arquivo já processado para a pasta Conferencia (Windows/OneDrive)
+devolver_arquivo_processado(CAMINHO_CONSOLIDADO, _nome_conferencia)
 
 em.terminate()
