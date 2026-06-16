@@ -38,12 +38,15 @@ O robô só funciona dentro da rede da SEPLAG.
 2. Procure o arquivo chamado **robo** (com um ícone de engrenagem). O nome completo é `robo.bat`.
 3. **Clique duas vezes seguidas** (rápido) em cima dele.
 
-## Passo 4 — Esperar a janela preta
+## Passo 4 — Esperar o robô trabalhar
 
 - Uma **janela preta** vai abrir na tela. É normal. **Não feche.**
+- A primeira coisa que ela mostra é `Atualizando o robo...` — o robô se atualiza sozinho com a versão mais recente antes de rodar. É normal.
+- Pode abrir também a **tela do SIAFI** (um terminal). **Não feche e não clique nessa tela** — é o robô "digitando" sozinho.
 - Primeiro o robô junta todas as planilhas da pasta `Remanejados` em uma só e a coloca na pasta `Conferencia`.
-- Em seguida ele entra no SIAFI e faz cada linha, uma por uma.
-- Na janela preta vão aparecer os resultados de cada linha. **Não mexa no computador enquanto ele trabalha.** Espere até ele terminar.
+- Em seguida ele entra no SIAFI e faz cada linha, uma por uma. Na janela preta vão aparecendo os resultados.
+
+> **Você pode usar o computador normalmente enquanto o robô trabalha** (e-mail, navegador, planilhas, etc.). O robô controla o SIAFI "por dentro", então digitar ou clicar em **outros** programas **não atrapalha**. A única regra é: **não feche nem clique nas janelas do próprio robô** (a janela preta e a tela do SIAFI).
 
 ## Passo 5 — Conferir o resultado
 
@@ -63,53 +66,51 @@ O robô só funciona dentro da rede da SEPLAG.
 > Faça esta parte **só uma vez**, na primeira vez que usar o robô em um computador novo.
 > Depois disso, use sempre a PARTE 1.
 
-A primeira instalação tem até **3 etapas**. Faça uma de cada vez, na ordem.
+A primeira instalação tem **2 etapas**, com **um reinício no meio**. Você vai clicar no `instalar.bat` **duas vezes** (antes e depois de reiniciar).
 
-## Etapa A — Instalar o "motor" do robô (Ubuntu)
+## Etapa A — Instalar o "motor" do robô e reiniciar
 
-> Se ao clicar no robô ele já abrir a janela preta normalmente e pedir suas credenciais, **pule para a Etapa C.**
+> Se ao clicar no `instalar.bat` ele já pular direto para pedir as credenciais do SIAFI (sem falar em instalar WSL/Ubuntu), o motor já está instalado — vá direto para a **Etapa B**.
 
-1. Abra a pasta do robô.
-2. Clique duas vezes no arquivo **instalar** (`instalar.bat`).
-3. Vai aparecer uma janela do Windows perguntando se você permite. Clique em **Sim**.
-4. Na janela preta vai aparecer a frase: `Instalando WSL e Ubuntu...`
-5. **Espere.** Pode demorar alguns minutos. Não feche nada.
-6. No final, vai aparecer uma frase pedindo para **reiniciar o computador**.
-7. Salve tudo o que estiver aberto e **reinicie o computador** (Menu Iniciar → botão de ligar → Reiniciar).
+1. Abra a pasta do robô e clique duas vezes em **instalar** (`instalar.bat`).
+2. Vai aparecer uma janela do Windows pedindo permissão de administrador. Clique em **Sim**.
+3. **Se você estiver na rede da SEPLAG**, pode aparecer um pedido das credenciais do **proxy** (para baixar os programas):
+   - **Usuário do proxy:** a sua **matrícula**.
+   - **Senha do proxy:** a senha que você usa para a internet/rede da SEPLAG *(não aparece ao digitar)*.
+4. **Espere** o download e a instalação do WSL e do Ubuntu. Pode demorar **vários minutos**. Não feche nada.
+5. No final, aparece a mensagem pedindo para **reiniciar o computador**.
+6. Salve tudo o que estiver aberto e **reinicie** (Menu Iniciar → botão de ligar → Reiniciar).
 
-## Etapa B — Criar o usuário do Ubuntu (depois de reiniciar)
+## Etapa B — Criar o usuário do Ubuntu e configurar (depois de reiniciar)
 
-1. Depois de reiniciar, uma janela vai abrir sozinha. Ela tem fundo escuro e letras claras.
-2. Ela vai pedir para criar um **nome de usuário**. Digite uma palavra simples, por exemplo `siafi`, e aperte **Enter**.
+1. Depois de reiniciar, clique duas vezes em **instalar** (`instalar.bat`) **de novo**.
+2. Uma **janela escura** vai pedir para criar o **usuário e a senha do Ubuntu**:
+   - Digite um nome simples (por exemplo `siafi`) e aperte **Enter**.
+   - Digite uma senha, **anote em um papel** para não esquecer, e aperte **Enter**. Quando pedir, **repita** a mesma senha.
 
-   > As letras que você digita aqui **não aparecem** na tela. É normal e proposital. Continue digitando mesmo sem ver.
-3. Em seguida ela pede uma **senha**. Digite uma senha simples e **anote em um papel** para não esquecer. Aperte **Enter**.
-4. Ela vai pedir para **repetir a senha**. Digite a mesma senha de novo e aperte **Enter**.
-5. Quando terminar, **feche essa janela** (clique no X).
+   > As letras da senha **não aparecem** ao digitar. É normal e proposital. Continue digitando mesmo sem ver.
+3. Em seguida o robô começa a se configurar sozinho. Durante isso, ele pode perguntar:
 
-## Etapa C — Configurar o robô (credenciais e pasta do projeto)
+   **a) Proxy** — *"Está na rede da CAMG/PRODEMGE e precisa de proxy? [S/n]"*
+   - Se estiver na SEPLAG, aperte **Enter** (Sim) e informe a **matrícula** e a **senha do proxy** de novo.
 
-1. Abra a pasta do robô.
-2. Clique duas vezes no arquivo **instalar** (`instalar.bat`).
-3. A janela preta abre e começa a se configurar sozinha. **Espere** (pode demorar alguns minutos).
-4. Em um momento, o robô vai **pedir suas credenciais do SIAFI**, uma de cada vez. Digite cada uma e aperte **Enter**:
+   **b) Credenciais do SIAFI** — uma de cada vez:
 
    | Quando aparecer | Digite |
    |-----------------|--------|
    | `USUARIO` | O seu login do SIAFI |
-   | `SENHA` | A sua senha do SIAFI *(as letras não aparecem ao digitar — é normal)* |
+   | `SENHA` | A sua senha do SIAFI *(não aparece ao digitar)* |
    | `UNIDADE_EXECUTORA` | O código da sua unidade. Exemplo: `1451` |
 
-5. Em seguida ele vai perguntar: **"Qual o caminho que irá ser utilizado no projeto?"**
-   - Responda com a pasta **onde** o projeto deve ficar (o robô cria a pasta `Projeto de Descentralização` lá dentro, com todas as subpastas).
-   - Você pode **colar o caminho do Windows**. Exemplo:
+   **c) Pasta do projeto** — *"Qual o caminho que irá ser utilizado no projeto?"*
+   - Cole a pasta **onde** o projeto deve ficar (o robô cria a `Projeto de Descentralização` e as subpastas lá dentro). Exemplo:
 
      ```
      C:\Users\SEU_USUARIO\OneDrive - CAMG\General\@dcmefo\2026
      ```
 
    - Se aparecer uma **sugestão**, é só apertar **Enter** para aceitar.
-6. Depois disso, aparece a mensagem de **configuração concluída** — e a pasta do projeto já fica criada e pronta.
+4. No final, aparece a mensagem de **configuração concluída** — e a pasta do projeto já fica criada e pronta.
 
 > A partir daí, é só usar a **PARTE 1** sempre que precisar.
 
@@ -117,7 +118,7 @@ A primeira instalação tem até **3 etapas**. Faça uma de cada vez, na ordem.
 
 # A estrutura de pastas (criada automaticamente na instalação)
 
-O robô trabalha sempre dentro de **uma pasta-raiz chamada `Projeto de Descentralização`**. Você **não precisa criar essas pastas à mão**: na Etapa C da instalação, ao responder *"Qual o caminho que irá ser utilizado no projeto?"*, o próprio instalador cria a `Projeto de Descentralização` e todas as subpastas no lugar que você indicar.
+O robô trabalha sempre dentro de **uma pasta-raiz chamada `Projeto de Descentralização`**. Você **não precisa criar essas pastas à mão**: na Etapa B da instalação, ao responder *"Qual o caminho que irá ser utilizado no projeto?"*, o próprio instalador cria a `Projeto de Descentralização` e todas as subpastas no lugar que você indicar.
 
 Essa pasta pode ficar **em qualquer lugar** do computador — dentro do OneDrive ou não. O que muda de um computador para outro é **só onde ela está**. Exemplos de caminho que você pode informar na instalação (o caminho-pai, sem a `Projeto de Descentralização`):
 
@@ -181,13 +182,32 @@ O robô não conseguiu entrar no SIAFI. Confira:
 
 Feche a janela preta e tente de novo desde o Passo 3.
 
+## Apareceu "Senha expirada" e abriu um arquivo no Bloco de Notas
+
+Sua senha do SIAFI **venceu**. O robô para, avisa, e **abre sozinho o arquivo `.env`** no Bloco de Notas para você atualizar a senha. Faça assim:
+
+1. Entre no **SIAFI manualmente** (do jeito de sempre) e **troque a sua senha** por uma nova.
+2. No arquivo `.env` que abriu, ache a linha que começa com `SENHA=` e troque pela **nova senha**.
+3. **Salve** o arquivo (Ctrl + S) e feche o Bloco de Notas.
+4. Rode o **robo.bat** de novo (PARTE 1).
+
 ## Apareceu "Nao foi possivel fazer login apos varias tentativas"
 
-Sua senha do SIAFI pode ter mudado. Peça para o **suporte técnico da DCMEFO** atualizar a senha do robô.
+O robô não conseguiu entrar no SIAFI. Confira:
+- A `SENHA` no arquivo `.env` está correta? *(veja como abrir o `.env` no item acima)*
+- Você está na rede da SEPLAG ou com a VPN ligada?
+
+Se continuar, peça ajuda ao **suporte técnico da DCMEFO**.
+
+## Deu erro de download / proxy durante a instalação
+
+- Confira se digitou certo a **matrícula** e a **senha do proxy**.
+- Você precisa estar **na rede da SEPLAG** (ou VPN) para baixar o WSL/Ubuntu.
+- Se persistir, chame o **suporte técnico da DCMEFO**.
 
 ## Apareceu "ERRO: setup.sh falhou"
 
-Deu um problema na primeira instalação. Pode ser falta de internet. Chame o **suporte técnico da DCMEFO**.
+Deu um problema na instalação. Pode ser falta de internet ou proxy. Chame o **suporte técnico da DCMEFO**.
 
 ## Qualquer outra coisa
 

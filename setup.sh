@@ -170,7 +170,7 @@ if ! grep -q "^USUARIO=" .env 2>/dev/null; then
     read -rp  "  USUARIO: "                      USUARIO
     read -rsp "  SENHA (não aparece na tela): "  SENHA
     echo ""
-    read -rp  "  UNIDADE_EXECUTORA (ex: 1451): " UNIDADE_EXECUTORA
+    read -rp  "  UNIDADE_EXECUTORA (ex: 1500008): " UNIDADE_EXECUTORA
     printf 'USUARIO=%s\nSENHA=%s\nUNIDADE_EXECUTORA=%s\n' \
         "$USUARIO" "$SENHA" "$UNIDADE_EXECUTORA" >> .env
     echo "Credenciais SIAFI salvas."

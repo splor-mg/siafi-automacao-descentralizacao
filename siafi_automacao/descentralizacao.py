@@ -243,13 +243,21 @@ while tentativas < max_tentativas:
         if em.string_found(1, 13, 'Logon executado com sucesso'):
             print("Login realizado com sucesso!")
             break
-
+        elif em.string_found(23, 2, 'Senha expirada. Digite Nova Senha.'):
+            print("")
+            print("=" * 70)
+            print("Senha expirada. Abra o SIAFI manualmente e atualize sua senha.")
+            print("Apos isso, salve a nova senha no arquivo .env e execute o script novamente.")
+            print("=" * 70)
+            em.terminate()
+            sys.exit(3)
+            break
         else:
             # Tela com campo editável, mas ainda não é a de sucesso
             print(f"Tentativa {tentativas + 1} - tela intermediária, avançando...")
             em.send_enter()
 
-    except:
+    except Exception:
         print(f"Tentativa {tentativas + 1} - tela de aviso detectada, passando...")
         em.send_enter()
 
@@ -258,16 +266,6 @@ while tentativas < max_tentativas:
 if tentativas == max_tentativas:
     print("Não foi possível fazer login após várias tentativas.")
     em.terminate()
-
-if em.string_found(23, 1, 'Senha expirada. Digite Nova Senha.'):
-    print("")
-    print("=" * 70)
-    print("Senha expirada. Abra o SIAFI manualmente e atualize sua senha.")
-    print("Apos isso, salve a nova senha no arquivo .env e execute o script novamente.")
-    print("=" * 70)
-    em.terminate()
-    # Codigo 3: sinaliza ao robo.ps1 para abrir o .env e pedir a nova senha
-    sys.exit(3)
 
 em.fill_field(1, 2, sistema, 4)
 em.send_enter()
@@ -292,7 +290,7 @@ while tentativas < max_tentativas:
             print(f"Tentativa {tentativas + 1} - tela intermediária, avançando...")
             em.send_enter()
 
-    except:
+    except Exception:
         # Tela SEM campo editável — é a tela de aviso, só dá Enter e segue
         print(f"Tentativa {tentativas + 1} - tela de aviso detectada, passando...")
         em.send_enter()
