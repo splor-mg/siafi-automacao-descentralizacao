@@ -1,6 +1,5 @@
 import time
 
-breakpoint()
 
 def aprovacao(em, data_row):
     ## Verifica se é anulação ou aprovação e preencche 03-1 para aprovação e 04-1 para anulação

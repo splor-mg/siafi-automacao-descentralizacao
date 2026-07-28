@@ -28,10 +28,21 @@ Fluxo:
 
 O consolidado é depois lido pelo descentralizacao.py, que o move para a pasta
 local de trabalho (PASTA_LINUX), processa no SIAFI e o devolve para "Conferencia".
+
+Códigos de saída (lidos pelo robo.ps1, que só inicia o robô quando o código é 0):
+
+    0 - consolidado gerado com sucesso.
+    1 - erro: configuração ausente, falha de leitura ou erro de preenchimento.
+    2 - nada a consolidar (pasta "Remanejados" vazia ou sem linhas válidas).
+
+Os códigos 1 e 2 são igualmente impeditivos: em ambos os casos nenhum consolidado
+novo foi gerado, e seguir para o descentralizacao.py faria o robô reprocessar a
+conferência que ficou na pasta "Conferencia" de uma execução anterior.
 """
 
 import os
 import shutil
+import sys
 from datetime import datetime
 
 import pandas as pd
@@ -329,10 +340,10 @@ def main():
     if not PASTA_WINDOWS:
         print('[ERRO] PASTA_WINDOWS não configurada no .env.')
         print('Configure a pasta-raiz "Projeto de Descentralização" e rode novamente.')
-        return
+        sys.exit(1)
     if not os.path.isdir(PASTA_WINDOWS):
         print(f'[ERRO] PASTA_WINDOWS não encontrada: {PASTA_WINDOWS}')
-        return
+        sys.exit(1)
 
     pasta_remanejados     = _sub(SUB_REMANEJADOS)
     pasta_conferencia     = _sub(SUB_CONFERENCIA)
@@ -349,7 +360,7 @@ def main():
     arquivos_origem = listar_xlsx(pasta_remanejados)
     if not arquivos_origem:
         print(f'Nenhuma planilha em "{pasta_remanejados}". Nada a consolidar.')
-        return
+        sys.exit(2)
 
     blocos = []
     todos_erros = []
@@ -360,7 +371,7 @@ def main():
         except Exception as e:
             print(f'[ERRO] Falha ao ler {nome}: {e}')
             print('Abortando para não consolidar dados parciais.')
-            return
+            sys.exit(1)
 
         if erros:
             todos_erros.extend(erros)
@@ -383,11 +394,11 @@ def main():
         for e in todos_erros:
             print(f'  - {e}')
         print('=' * 78)
-        return
+        sys.exit(1)
 
     if not blocos:
         print('Nenhuma linha válida encontrada nos arquivos de origem.')
-        return
+        sys.exit(2)
 
     # -----------------------------------------------------------------
     # 3. Passou na validação: arquiva a conferência anterior.

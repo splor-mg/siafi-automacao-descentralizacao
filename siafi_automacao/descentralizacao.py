@@ -337,7 +337,17 @@ df['Progresso'] = df['Progresso'].astype('object')
 
 # O loop usa "for idx, row" para que o df.at[idx, 'Progresso'] grave o retorno
 # na linha correta em memória (e depois em disco).
+puladas = 0
 for idx, row in df.iterrows():
+    # Linhas com 'Progresso' já preenchido foram executadas no SIAFI em uma
+    # rodada anterior. Pular é o que torna seguro reexecutar o robô depois de
+    # uma queda de conexão: sem isso, ele refaria as operações já realizadas.
+    progresso_atual = row['Progresso']
+    if pd.notna(progresso_atual) and str(progresso_atual).strip() != '':
+        print(f"Linha {idx + 2}: já processada ('{str(progresso_atual).strip()}') — pulando.")
+        puladas += 1
+        continue
+
     data_row = {}
     data_row['month']   = month
     data_row['orientacao']      = str((row['Orientacao']))
@@ -392,6 +402,9 @@ for idx, row in df.iterrows():
     # imediatamente para não perder o que já foi processado caso pare no meio.
     df.at[idx, 'Progresso'] = traduzir_progresso(retorno)
     salvar_progresso(df, CAMINHO_CONSOLIDADO, SHEET_NAME)
+
+if puladas:
+    print(f"{puladas} linha(s) já processada(s) foram puladas nesta execução.")
 
 # Salvamento final (redundante com o incremental, mas garante o estado completo)
 salvar_progresso(df, CAMINHO_CONSOLIDADO, SHEET_NAME)
