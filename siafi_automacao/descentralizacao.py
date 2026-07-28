@@ -20,6 +20,7 @@ sistema = 'simg'
 usuario           = os.getenv('USUARIO')
 senha             = os.getenv('SENHA')
 unidade_executora = os.getenv('UNIDADE_EXECUTORA')
+unidade_orcamentaria = os.getenv('UNIDADE_ORCAMENTARIA')
 month = datetime.today().strftime("%m")
 
 # Definição dos CAMINHOS
@@ -290,7 +291,7 @@ while tentativas < max_tentativas:
             print(f"Tentativa {tentativas + 1} - tela intermediária, avançando...")
             em.send_enter()
 
-    except Exception:
+    except:
         # Tela SEM campo editável — é a tela de aviso, só dá Enter e segue
         print(f"Tentativa {tentativas + 1} - tela de aviso detectada, passando...")
         em.send_enter()
@@ -362,6 +363,7 @@ for idx, row in df.iterrows():
     data_row['item'] = str(int(row['Item'])) if pd.notna(row['Item']) else '0'
     data_row['uo_financiadora'] = str(int(row['UO_Financiadora'])) if pd.notna(row['UO_Financiadora']) else '0'
     data_row['iag'] = str(int(row['IAG']))
+    data_row['unidade_orcamentaria'] = unidade_orcamentaria  # UO da UE executora (vem do .env)
     data_row['valor'] = int(round(float(row['Valor']) * 100))
 
     # Criação da Variável de Retorno para armazenar o resultado do processamento de cada linha

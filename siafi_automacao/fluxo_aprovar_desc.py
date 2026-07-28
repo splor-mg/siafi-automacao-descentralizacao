@@ -1,5 +1,7 @@
 import time
 
+breakpoint()
+
 def aprovacao(em, data_row):
     ## Verifica se é anulação ou aprovação e preencche 03-1 para aprovação e 04-1 para anulação
     # Movimentação de tela
@@ -13,7 +15,7 @@ def aprovacao(em, data_row):
         if data_row['tipo'] == 'Global':
             #Aprovação/Anulação GLOBAL
             em.fill_field(10, 53, 'x', 1) # global
-            em.fill_field(12, 53, '1511', 4) ## digitar a UO
+            em.fill_field(12, 53, data_row['unidade_orcamentaria'], 4) ## digitar a UO
             em.fill_field(13, 53, data_row['iag'], 1) # IAG
             em.fill_field(13, 63, f"{data_row['fonte']}{data_row['procedencia']}", 3) # fonte e procendencia
             em.fill_field(14, 53, 'n', 1) # digita um não para DEA 
@@ -31,7 +33,7 @@ def aprovacao(em, data_row):
         elif data_row['tipo'] == 'Amarrado':
             #Aprovação/Anulação AMARRADO
             em.fill_field(11, 53, 'x', 1) # global
-            em.fill_field(12, 53, '1511', 4) ## digitar a UO
+            em.fill_field(12, 53, data_row['unidade_orcamentaria'], 4) ## digitar a UO
             em.fill_field(13, 53, data_row['iag'], 1) # IAG
             em.fill_field(13, 63, f"{data_row['fonte']}{data_row['procedencia']}", 3) # fonte e procendencia
             em.fill_field(14, 53, 'n', 1) # digita um não para DEA 
@@ -62,6 +64,7 @@ def aprovacao(em, data_row):
                 break
 
         #digitar as informações das ações e valores...
+        time.sleep(1)  # garante teclado liberado antes de escrever (evita "Keyboard locked")
         em.fill_field(17, 63, str(data_row['valor']), 15) # valor
         time.sleep(1)
         em.send_enter()
