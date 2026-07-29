@@ -4,8 +4,12 @@
 # garantir que o script se relance no maximo UMA vez por execucao.
 param([switch]$JaAtualizado)
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+# UTF8Encoding($false) = sem BOM. [System.Text.Encoding]::UTF8 emite preambulo
+# (EF BB BF) e o PowerShell o injeta no stdin de processos nativos, corrompendo a
+# primeira linha de qualquer coisa enviada por pipe para o WSL.
+$semBomUtf8 = New-Object System.Text.UTF8Encoding $false
+[Console]::OutputEncoding = $semBomUtf8
+[Console]::InputEncoding  = $semBomUtf8
 
 # ---------------------------------------------------------------------------
 # Funcoes auxiliares
@@ -30,22 +34,42 @@ function Test-Ambiente {
       travar o robo por ausencia do proprio verificador.
     #>
     param([string]$DistroName)
-    wsl -d $DistroName -- bash -c '
-        REPO="$HOME/code/splor-mg/siafi-automacao-descentralizacao"
-        cd "$REPO" 2>/dev/null || { echo "  [FALHA] repositorio nao encontrado em $REPO"; exit 1; }
-        if [ -f verificar.sh ]; then
-            bash verificar.sh --quiet
-        else
-            rc=0
-            [ -f consolida.py ]                          || { echo "  [FALHA] consolida.py ausente"; rc=1; }
-            [ -f siafi_automacao/descentralizacao.py ]   || { echo "  [FALHA] siafi_automacao/descentralizacao.py ausente"; rc=1; }
-            [ -x venv/bin/python ]                       || { echo "  [FALHA] venv ausente"; rc=1; }
-            [ -f .env ]                                  || { echo "  [FALHA] .env ausente"; rc=1; }
-            grep -q "^PASTA_WINDOWS=" .env 2>/dev/null   || { echo "  [FALHA] PASTA_WINDOWS ausente no .env"; rc=1; }
-            grep -q "^UNIDADE_ORCAMENTARIA=" .env 2>/dev/null || { echo "  [FALHA] UNIDADE_ORCAMENTARIA ausente no .env"; rc=1; }
-            exit $rc
-        fi
-    '
+
+    # IMPORTANTE: o script viaja em BASE64, nao como texto na linha de comando.
+    # Duas armadilhas do PowerShell 5.1 justificam isso:
+    #
+    # 1) Como argumento de "bash -c", o PowerShell nao escapa as aspas duplas
+    #    embutidas ("$REPO", "[FALHA]...") ao montar a linha de comando do
+    #    processo nativo (wsl.exe). O Windows fecha o argumento na primeira
+    #    aspas interna e o resto do script vira argumentos extras do bash -
+    #    era a causa do erro "unexpected end of file from `{'".
+    # 2) Por pipe/stdin ("bash -s") o texto tambem chega corrompido: o
+    #    PowerShell antepoe o BOM do UTF-8 (quebra a primeira linha) e termina
+    #    o envio com CRLF, transformando o "fi" final em "fi\r" - que nao e a
+    #    palavra-chave fi, e o if nunca fecha.
+    #
+    # O alfabeto do base64 nao tem aspas nem espacos: nada para o Windows
+    # requotar, e o "base64 -d" devolve exatamente os bytes originais.
+    $script = @'
+REPO="$HOME/code/splor-mg/siafi-automacao-descentralizacao"
+cd "$REPO" 2>/dev/null || { echo "  [FALHA] repositorio nao encontrado em $REPO"; exit 1; }
+if [ -f verificar.sh ]; then
+    # </dev/null: o script chega pelo stdin do bash; sem isso um "read" futuro
+    # dentro do verificar.sh comeria o restante do proprio script.
+    bash verificar.sh --quiet </dev/null
+else
+    rc=0
+    [ -f consolida.py ]                          || { echo "  [FALHA] consolida.py ausente"; rc=1; }
+    [ -f siafi_automacao/descentralizacao.py ]   || { echo "  [FALHA] siafi_automacao/descentralizacao.py ausente"; rc=1; }
+    [ -x venv/bin/python ]                       || { echo "  [FALHA] venv ausente"; rc=1; }
+    [ -f .env ]                                  || { echo "  [FALHA] .env ausente"; rc=1; }
+    grep -q "^PASTA_WINDOWS=" .env 2>/dev/null   || { echo "  [FALHA] PASTA_WINDOWS ausente no .env"; rc=1; }
+    grep -q "^UNIDADE_ORCAMENTARIA=" .env 2>/dev/null || { echo "  [FALHA] UNIDADE_ORCAMENTARIA ausente no .env"; rc=1; }
+    exit $rc
+fi
+'@
+    $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($script))
+    wsl -d $DistroName -- bash -c "echo $b64 | base64 -d | bash"
     return $LASTEXITCODE -eq 0
 }
 
@@ -69,14 +93,19 @@ function Update-Lancador {
       .exe nao precisa ser regerado a cada alteracao do robo.ps1.
 
       Falhar aqui NUNCA pode impedir o robo de rodar - qualquer erro so vira aviso.
-      Devolve $true quando ja relancou (o chamador deve encerrar).
+      Devolve $true quando o arquivo foi atualizado (o chamador deve relancar).
+
+      O relancamento em si fica FORA desta funcao, no fluxo principal: um
+      "& powershell.exe" dentro de uma funcao cujo retorno e consumido (aqui,
+      por um "if") tem o stdout redirecionado para a saida da funcao, e toda a
+      saida do robo relancado seria engolida.
     #>
     param([string]$DistroName)
 
     if ($JaAtualizado) { return $false }   # trava contra relancamento em loop
 
     try {
-        $caminhoRepo = wsl -d $DistroName -- bash -c 'wslpath -w "$HOME/code/splor-mg/siafi-automacao-descentralizacao/robo.ps1"' 2>$null
+        $caminhoRepo = wsl -d $DistroName -- bash -c 'wslpath -w $HOME/code/splor-mg/siafi-automacao-descentralizacao/robo.ps1' 2>$null
         if (-not $caminhoRepo) { return $false }
         $caminhoRepo = $caminhoRepo.Trim()
         if (-not (Test-Path -LiteralPath $caminhoRepo)) { return $false }
@@ -99,10 +128,6 @@ function Update-Lancador {
         return $false
     }
 
-    # Relanca em um processo NOVO, do mesmo jeito que o robo.bat faz. Isso garante
-    # que o codigo recem-gravado seja o que roda (o processo atual ja tem a versao
-    # antiga carregada em memoria) e que o codigo de saida chegue intacto ao .bat.
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -JaAtualizado
     return $true
 }
 
@@ -131,7 +156,15 @@ Write-Host "Atualizando o robo (git pull)..." -ForegroundColor Cyan
 wsl -d $Distro -- bash -c "cd ~/code/splor-mg/siafi-automacao-descentralizacao && git pull --ff-only 2>&1 || echo '[aviso] Nao foi possivel atualizar (git pull); seguindo com a versao local.'"
 
 # O git pull acima nao alcanca este proprio arquivo (ver Update-Lancador).
-if (Update-Lancador $Distro) { exit $LASTEXITCODE }
+if (Update-Lancador $Distro) {
+    # Relanca em um processo NOVO, do mesmo jeito que o robo.bat faz. Isso garante
+    # que o codigo recem-gravado seja o que roda (o processo atual ja tem a versao
+    # antiga carregada em memoria) e que o codigo de saida chegue intacto ao .bat.
+    # Chamada no escopo principal (sem "if (...)" em volta) para que a saida do
+    # processo filho va direto para o console, com cores, em vez de ser capturada.
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -JaAtualizado
+    exit $LASTEXITCODE
+}
 
 Write-Host "Trazendo as planilhas do OneDrive e consolidando..." -ForegroundColor Cyan
 wsl -d $Distro -- bash -c "cd ~/code/splor-mg/siafi-automacao-descentralizacao && source venv/bin/activate && PYTHONIOENCODING=utf-8 python consolida.py"
@@ -165,7 +198,7 @@ if ($codigo -eq 3) {
     Write-Host "Vou abrir o arquivo .env para voce salvar a nova senha (campo SENHA)." -ForegroundColor Yellow
     Write-Host "Depois de salvar o .env, rode o robo novamente." -ForegroundColor Yellow
 
-    $envWin = wsl -d $Distro -- bash -c 'wslpath -w "$HOME/code/splor-mg/siafi-automacao-descentralizacao/.env"'
+    $envWin = wsl -d $Distro -- bash -c 'wslpath -w $HOME/code/splor-mg/siafi-automacao-descentralizacao/.env'
     if ($envWin) {
         Start-Process notepad.exe -ArgumentList ($envWin.Trim())
     } else {
