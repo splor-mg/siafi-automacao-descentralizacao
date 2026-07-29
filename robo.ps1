@@ -18,12 +18,34 @@ function Get-UbuntuDistroName {
     if ($name) { return $name.Trim() } else { return "" }
 }
 
-function Test-SetupDone {
+function Test-Ambiente {
+    <#
+      Substitui a antiga checagem do arquivo-marcador .setup_done. Em vez de
+      confiar que "o instalador rodou", verifica as CONDICOES REAIS de
+      funcionamento chamando o verificar.sh (a mesma ferramenta que voce roda
+      avulso pelo verificar.bat). As pendencias [FALHA] sao impressas no console.
+
+      Se o verificar.sh ainda nao estiver no repositorio (checkout antigo, antes
+      do git pull deste run), cai para uma checagem minima embutida, para nunca
+      travar o robo por ausencia do proprio verificador.
+    #>
     param([string]$DistroName)
-    wsl -d $DistroName -- bash -c "
-        test -f ~/code/splor-mg/siafi-automacao-descentralizacao/.setup_done &&
-        grep -q '^PASTA_WINDOWS=' ~/code/splor-mg/siafi-automacao-descentralizacao/.env 2>/dev/null
-    " 2>$null
+    wsl -d $DistroName -- bash -c '
+        REPO="$HOME/code/splor-mg/siafi-automacao-descentralizacao"
+        cd "$REPO" 2>/dev/null || { echo "  [FALHA] repositorio nao encontrado em $REPO"; exit 1; }
+        if [ -f verificar.sh ]; then
+            bash verificar.sh --quiet
+        else
+            rc=0
+            [ -f consolida.py ]                          || { echo "  [FALHA] consolida.py ausente"; rc=1; }
+            [ -f siafi_automacao/descentralizacao.py ]   || { echo "  [FALHA] siafi_automacao/descentralizacao.py ausente"; rc=1; }
+            [ -x venv/bin/python ]                       || { echo "  [FALHA] venv ausente"; rc=1; }
+            [ -f .env ]                                  || { echo "  [FALHA] .env ausente"; rc=1; }
+            grep -q "^PASTA_WINDOWS=" .env 2>/dev/null   || { echo "  [FALHA] PASTA_WINDOWS ausente no .env"; rc=1; }
+            grep -q "^UNIDADE_ORCAMENTARIA=" .env 2>/dev/null || { echo "  [FALHA] UNIDADE_ORCAMENTARIA ausente no .env"; rc=1; }
+            exit $rc
+        fi
+    '
     return $LASTEXITCODE -eq 0
 }
 
@@ -96,9 +118,10 @@ Write-Host ""
 $Distro = Get-UbuntuDistroName
 if ([string]::IsNullOrWhiteSpace($Distro)) { $Distro = "Ubuntu" }
 
-if (-not (Test-SetupDone $Distro)) {
-    Write-Host "ERRO: ambiente nao configurado." -ForegroundColor Red
-    Write-Host "Execute instalar.bat antes de rodar o robo." -ForegroundColor Yellow
+if (-not (Test-Ambiente $Distro)) {
+    Write-Host ""
+    Write-Host "ERRO: o ambiente tem pendencias (itens [FALHA] acima)." -ForegroundColor Red
+    Write-Host "Rode verificar.bat para o diagnostico completo e corrija o que estiver faltando." -ForegroundColor Yellow
     exit 1
 }
 
