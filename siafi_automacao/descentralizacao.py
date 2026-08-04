@@ -97,19 +97,20 @@ def salvar_progresso(df, caminho, sheet):
     os.replace(tmp, caminho)
 
 
-def traduzir_progresso(retorno):
+def traduzir_progresso(retorno, nr_doc=''):
     """Converte a mensagem crua do SIAFI no texto que vai para a coluna
-    'Progresso'. Sucesso ('REGISTRO EFETUADO') vira 'Ok'; mensagens de erro
-    conhecidas viram um texto amigável; qualquer outro retorno é mantido como
-    veio, para nada ser escondido. Para incluir novas mensagens, basta
-    acrescentar uma linha no mapa abaixo."""
+    'Progresso'. Sucesso ('REGISTRO EFETUADO') vira 'Ok - <nr do documento>';
+    mensagens de erro conhecidas viram um texto amigável; qualquer outro retorno
+    é mantido como veio, para nada ser escondido. Para incluir novas mensagens,
+    basta acrescentar uma linha no mapa abaixo."""
     if retorno is None or (isinstance(retorno, str) and retorno.strip() == ''):
         return ''
     retorno = retorno.strip()
+    nr_doc = (nr_doc or '').strip()
 
-    # Sucesso
+    # Sucesso: registra o Nr. do Documento Global junto do 'Ok'
     if 'REGISTRO EFETUADO' in retorno.upper():
-        return 'Ok'
+        return f'Ok - {nr_doc}' if nr_doc else 'Ok'
 
     if retorno.startswith("E90 - SALDO ZERADO NA CONTA"):
         return 'Saldo zerado na conta'
@@ -201,7 +202,7 @@ def formatar_planilha(ws):
         if 'Progresso' in cabec:
             prog_cell = ws.cell(row=r, column=cabec['Progresso'])
             valor = (prog_cell.value or '').strip()
-            if valor == 'Ok':
+            if valor == 'Ok' or valor.startswith('Ok -'):
                 prog_cell.fill = VERDE
             elif valor != '':
                 prog_cell.fill = VERMELHO if 'zerado' in valor.lower() or 'maior' in valor.lower() or 'inexistente' in valor.lower() else AMARELO
@@ -376,8 +377,9 @@ for idx, row in df.iterrows():
     data_row['unidade_orcamentaria'] = unidade_orcamentaria  # UO da UE executora (vem do .env)
     data_row['valor'] = int(round(float(row['Valor']) * 100))
 
-    # Criação da Variável de Retorno para armazenar o resultado do processamento de cada linha
+    # Criação das Variáveis de Retorno para armazenar o resultado do processamento de cada linha
     retorno = ''
+    nr_doc = ''
 
     if data_row['orientacao'] == 'Anular':
         print(f"Realizando procedimento de anulação")
@@ -394,13 +396,13 @@ for idx, row in df.iterrows():
     # aqui você pode inspecionar o data_row e decidir se é anulação ou aprovação, global ou amarrado, e então chamar as funções correspondentes
 
     if data_row['orientacao'] == 'Anular':
-        retorno = anulacao(em, data_row)
+        retorno, nr_doc = anulacao(em, data_row)
     elif data_row['orientacao'] == 'Aprovar':
-        retorno = aprovacao(em, data_row)
+        retorno, nr_doc = aprovacao(em, data_row)
 
     # Traduz o retorno do SIAFI e grava na coluna 'Progresso', salvando
     # imediatamente para não perder o que já foi processado caso pare no meio.
-    df.at[idx, 'Progresso'] = traduzir_progresso(retorno)
+    df.at[idx, 'Progresso'] = traduzir_progresso(retorno, nr_doc)
     salvar_progresso(df, CAMINHO_CONSOLIDADO, SHEET_NAME)
 
 if puladas:

@@ -3,6 +3,11 @@ import time
 
 def aprovacao(em, data_row):
     ## Verifica se é anulação ou aprovação e preencche 03-1 para aprovação e 04-1 para anulação
+
+    # Nr. do documento global: só é preenchido quando a operação é efetivada.
+    # Inicializado aqui para os fluxos interrompidos por erro não quebrarem.
+    nr_doc = ""
+
     # Movimentação de tela
     em.fill_field(21, 19, '01', 2)
     em.fill_field(21, 41, '1', 1)
@@ -86,7 +91,17 @@ def aprovacao(em, data_row):
             em.wait_for_field()
             em.send_pf(5)  # envia F5
             em.wait_for_field()
+
+            linha_6 = em.string_get(7, 1, 80).strip()
+
+            marcador = "Nr. Documento Global:"
+            idx = linha_6.find(marcador)
+            if idx != -1:
+                nr_doc = linha_6[idx + len(marcador):].strip().split()[0]
+            else:
+                nr_doc = ""
             time.sleep(1)
+
             retorno = em.string_get(1, 1, 80).strip()
             break
 
@@ -94,4 +109,4 @@ def aprovacao(em, data_row):
     em.send_pf(3)  # envia F3
     em.wait_for_field()
 
-    return retorno
+    return retorno, nr_doc
