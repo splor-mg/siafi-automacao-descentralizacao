@@ -14,6 +14,16 @@ Sempre que um comando abaixo disser "reinicie" — ou o Windows avisar "é neces
 **2. O `robo.bat` não exige mais ter rodado o instalador.**
 Hoje o `robo.ps1` não verifica "se o instalador rodou" — a cada execução ele confere as **condições reais** (repositório existe, `venv` existe, `.env` preenchido, pastas existem etc.), chamando o `verificar.sh` por baixo dos panos. Ou seja: instale tudo do seu jeito, à mão, seguindo este manual — o robô só recusa rodar se algo *realmente* estiver faltando, não porque você não rodou o `instalar.bat`.
 
+**3. Preste atenção em ONDE cada comando é colado.**
+Este manual alterna entre três lugares diferentes: PowerShell do Windows (às vezes como Administrador, às vezes não) e o terminal do Ubuntu (dentro do WSL). Todo bloco de comando abaixo vem com uma etiqueta dizendo onde colar. Colar o comando certo no lugar errado é a segunda causa mais comum de erro neste tipo de instalação.
+
+| Etiqueta | O que é | Como abrir |
+|---|---|---|
+| 🟦 **PowerShell (Administrador)** | terminal do Windows, com privilégios de administrador | menu Iniciar → botão direito → "Terminal (Admin)" (ou procure "PowerShell", botão direito → "Executar como administrador") |
+| 🟦 **PowerShell (comum)** | terminal do Windows, sem privilégios especiais | menu Iniciar → digite "PowerShell" → Enter |
+| 🟩 **Ubuntu (bash)** | terminal dentro do WSL/Ubuntu — **não é o PowerShell** | menu Iniciar → app "Ubuntu" (ou "Ubuntu-24.04") |
+| 🗂️ **Explorador de Arquivos** | o Windows Explorer, não é um terminal | Win+E, ou clique na barra de endereço |
+
 ---
 
 ## Resumo rápido — o que precisa existir para o `robo.bat` funcionar
@@ -70,6 +80,7 @@ Abra o **PowerShell como Administrador** (botão direito no menu Iniciar → "Te
 
 ### 2.1. Caminho normal (se a máquina alcança a Microsoft Store)
 
+🟦 **PowerShell (Administrador)**
 ```powershell
 wsl --install -d Ubuntu-24.04
 ```
@@ -80,6 +91,7 @@ wsl --install -d Ubuntu-24.04
 
 Em muitas máquinas da rede o `wsl --install` falha porque o download não passa pelo proxy autenticado. Nesse caso, baixe os pacotes com o `curl.exe` (que aceita usuário/senha de proxy) e instale manualmente:
 
+🟦 **PowerShell (Administrador)**
 ```powershell
 # 1) Habilitar os componentes do Windows
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
@@ -88,6 +100,7 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 🔁 **Reinicie o computador agora, antes de continuar.** Os dois comandos acima só têm efeito depois do reinício — rodar o próximo passo sem reiniciar dá erro.
 
+🟦 **PowerShell (Administrador)** — abra de novo depois de reiniciar
 ```powershell
 # 2) Baixar o motor do WSL e a distro Ubuntu através do proxy
 $proxy = "http://proxycamg.prodemge.gov.br:8080"
@@ -119,6 +132,7 @@ Abra o **Ubuntu** pelo menu Iniciar. Na primeira vez ele pede:
 
 Confirme que ficou tudo certo:
 
+🟦 **PowerShell (comum, não precisa ser Administrador)**
 ```powershell
 wsl --list --verbose      # deve mostrar Ubuntu-24.04 ... Running/Stopped ... 2
 ```
@@ -126,6 +140,8 @@ wsl --list --verbose      # deve mostrar Ubuntu-24.04 ... Running/Stopped ... 2
 ---
 
 ## 3. Configurar o proxy dentro do Ubuntu
+
+> A partir daqui até o passo 8, **todo comando é dentro do terminal Ubuntu (🟩)** — abra o app "Ubuntu" pelo menu Iniciar, não o PowerShell.
 
 **Configure o proxy por ferramenta (apt, git, pip), não só em variáveis de ambiente.** Três motivos concretos:
 
@@ -141,6 +157,7 @@ As variáveis de ambiente no `.bashrc` continuam valendo como complemento, para 
 
 Na URL do proxy, `@`, `#`, `:`, `/`, `%` quebram o endereço e precisam virar código. Gere a versão codificada:
 
+🟩 **Ubuntu (bash)**
 ```bash
 python3 -c "import urllib.parse,getpass; print(urllib.parse.quote(getpass.getpass('Senha: '), safe=''))"
 ```
@@ -149,6 +166,7 @@ Use o resultado no lugar de `SENHA_CODIFICADA` daqui em diante. O login é a mat
 
 ### 3.2. apt (pacotes do sistema)
 
+🟩 **Ubuntu (bash)**
 ```bash
 sudo tee /etc/apt/apt.conf.d/95proxy >/dev/null <<'EOF'
 Acquire::http::Proxy  "http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:8080";
@@ -159,6 +177,7 @@ sudo chmod 600 /etc/apt/apt.conf.d/95proxy
 
 ### 3.3. git (usado pelo clone e pelo `git pull` de toda execução)
 
+🟩 **Ubuntu (bash)**
 ```bash
 git config --global http.proxy  "http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:8080"
 git config --global https.proxy "http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:8080"
@@ -168,6 +187,7 @@ chmod 600 ~/.gitconfig
 
 ### 3.4. pip (dependências Python)
 
+🟩 **Ubuntu (bash)**
 ```bash
 mkdir -p ~/.config/pip
 cat > ~/.config/pip/pip.conf <<'EOF'
@@ -183,6 +203,7 @@ chmod 600 ~/.config/pip/pip.conf
 
 ### 3.5. Variáveis de ambiente (curl, wget, uso interativo)
 
+🟩 **Ubuntu (bash)**
 ```bash
 cat > ~/.proxyrc <<'EOF'
 export http_proxy="http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:8080"
@@ -201,6 +222,7 @@ source ~/.proxyrc
 
 ### 3.6. Testar antes de seguir
 
+🟩 **Ubuntu (bash)**
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://pypi.org      # espera 200
 git ls-remote https://github.com/splor-mg/siafi-automacao-descentralizacao.git >/dev/null && echo "git OK"
@@ -218,6 +240,7 @@ Instalar o **CNTLM** (`sudo apt install cntlm`): guarda um hash da senha em um �
 
 ## 4. Instalar as dependências do sistema
 
+🟩 **Ubuntu (bash)**
 ```bash
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -232,6 +255,7 @@ sudo apt-get install -y --no-install-recommends \
 
 O caminho é fixo no `robo.ps1`. Não use outro diretório.
 
+🟩 **Ubuntu (bash)**
 ```bash
 mkdir -p ~/code/splor-mg
 cd ~/code/splor-mg
@@ -241,6 +265,7 @@ cd siafi-automacao-descentralizacao
 
 Repositório privado? O git pede usuário e senha — use seu usuário do GitHub e um **Personal Access Token (PAT)** no lugar da senha. Para não digitar toda vez:
 
+🟩 **Ubuntu (bash)**
 ```bash
 git config --global credential.helper store
 chmod 600 ~/.git-credentials 2>/dev/null
@@ -248,6 +273,7 @@ chmod 600 ~/.git-credentials 2>/dev/null
 
 Confirme o caminho:
 
+🟩 **Ubuntu (bash)**
 ```bash
 pwd    # precisa imprimir: /home/SEU_USUARIO/code/splor-mg/siafi-automacao-descentralizacao
 ```
@@ -258,6 +284,7 @@ Se o clone falhar com erro de proxy, revise o passo 3.3 (git precisa do proxy co
 
 ## 6. Criar o ambiente virtual Python
 
+🟩 **Ubuntu (bash)**
 ```bash
 cd ~/code/splor-mg/siafi-automacao-descentralizacao
 python3 -m venv venv
@@ -268,6 +295,7 @@ pip install -r requirements.txt
 
 Se você não criou o `pip.conf` do passo 3.4, passe o proxy na mão:
 
+🟩 **Ubuntu (bash)**
 ```bash
 pip install --proxy "http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:8080" \
     --trusted-host pypi.org --trusted-host files.pythonhosted.org \
@@ -276,6 +304,7 @@ pip install --proxy "http://LOGIN:SENHA_CODIFICADA@proxycamg.prodemge.gov.br:808
 
 Conferir:
 
+🟩 **Ubuntu (bash)**
 ```bash
 python -c "import py3270, pandas, openpyxl, dotenv; print('deps OK')"
 ```
@@ -286,6 +315,7 @@ python -c "import py3270, pandas, openpyxl, dotenv; print('deps OK')"
 
 Fica na raiz do repositório e nunca vai para o git.
 
+🟩 **Ubuntu (bash)**
 ```bash
 cd ~/code/splor-mg/siafi-automacao-descentralizacao
 cp .env.example .env
@@ -293,7 +323,7 @@ chmod 600 .env
 nano .env      # edite e salve com Ctrl+O, Enter, Ctrl+X
 ```
 
-Conteúdo final (sem aspas, sem espaço em volta do `=`):
+Conteúdo final (digite dentro do editor `nano` que abriu — sem aspas, sem espaço em volta do `=`):
 
 ```ini
 USUARIO=1234567
@@ -315,8 +345,9 @@ PASTA_LINUX=/home/SEU_USUARIO_LINUX/code/splor-mg/siafi-automacao-descentralizac
 
 > O sistema de acesso (`simg`) é fixo no código e não vai no `.env`.
 
-Para achar o `PASTA_WINDOWS` sem errar: abra a pasta no Explorador do Windows, copie o caminho da barra de endereço e converta:
+Para achar o `PASTA_WINDOWS` sem errar: abra a pasta no 🗂️ **Explorador de Arquivos**, copie o caminho da barra de endereço e converta:
 
+🟩 **Ubuntu (bash)**
 ```bash
 wslpath -u 'C:\Users\SEU_USUARIO\OneDrive - CAMG\General\@dcmefo\2026\Projeto de Descentralização'
 ```
@@ -329,6 +360,7 @@ wslpath -u 'C:\Users\SEU_USUARIO\OneDrive - CAMG\General\@dcmefo\2026\Projeto de
 
 Os nomes precisam ser **exatamente** estes — com acento, espaço e parênteses:
 
+🟩 **Ubuntu (bash)**
 ```bash
 BASE="/mnt/c/Users/SEU_USUARIO_WINDOWS/OneDrive - CAMG/General/@dcmefo/2026/Projeto de Descentralização"
 
@@ -351,6 +383,7 @@ Projeto de Descentralização/
 
 ### 8.2. Pasta de trabalho local (lado Linux)
 
+🟩 **Ubuntu (bash)**
 ```bash
 mkdir -p ~/code/splor-mg/siafi-automacao-descentralizacao/data
 ```
@@ -363,8 +396,9 @@ mkdir -p ~/code/splor-mg/siafi-automacao-descentralizacao/data
 
 O `robo.bat` roda no Windows e chama o `robo.ps1` que está na mesma pasta dele. Duas opções:
 
-**Opção A (recomendada) — atalho direto do repositório.** No Explorador do Windows, acesse:
+**Opção A (recomendada) — atalho direto do repositório.**
 
+🗂️ **Explorador de Arquivos** — cole na barra de endereço:
 ```
 \\wsl.localhost\Ubuntu-24.04\home\SEU_USUARIO_LINUX\code\splor-mg\siafi-automacao-descentralizacao
 ```
@@ -381,12 +415,13 @@ Clique direito em `robo.bat` → **Enviar para → Área de trabalho (criar atal
 
 Antes de rodar o robô de verdade:
 
+🟩 **Ubuntu (bash)**
 ```bash
 cd ~/code/splor-mg/siafi-automacao-descentralizacao
 bash verificar.sh
 ```
 
-Ou, pelo Windows, clique duas vezes em **`verificar.bat`**.
+Ou, mais fácil: 🗂️ **Explorador de Arquivos** — clique duas vezes em **`verificar.bat`** (não é comando de terminal, é um duplo clique no arquivo).
 
 Ele confere repositório, arquivos, venv, dependências, `s3270`/`x3270`, todas as chaves do `.env` e as pastas — a mesma checagem que o `robo.bat` faz sozinho antes de rodar. **Só siga adiante quando não houver nenhum `[FALHA]`.** Avisos (`[AVISO]`) não impedem a execução.
 
@@ -396,7 +431,7 @@ Ele confere repositório, arquivos, venv, dependências, `s3270`/`x3270`, todas 
 
 1. Confirme que está na rede da SEPLAG (ou com VPN ligada).
 2. Coloque as planilhas (com a aba `Execucao`) em `Remanejados (Insira seu arquivo aqui)` e feche os arquivos no Excel.
-3. Clique duas vezes em **`robo.bat`**.
+3. 🗂️ **Explorador de Arquivos** — clique duas vezes em **`robo.bat`** (não precisa abrir terminal nenhum; o `.bat` abre tudo sozinho).
 
 Ordem de execução: verifica o ambiente → `git pull` (se falhar por proxy, só avisa e segue com a versão local) → `consolida.py` → `descentralizacao.py`.
 
