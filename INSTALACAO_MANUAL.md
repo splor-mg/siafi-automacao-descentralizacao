@@ -87,13 +87,26 @@ wsl --install -d Ubuntu-24.04
 
 🔁 **Reinicie o computador quando ele pedir.** Não continue sem reiniciar.
 
+> Deu **"O tempo limite da operação foi atingido"** sem nenhuma outra mensagem? Esse é o sintoma típico de bloqueio de proxy — não precisa tentar adivinhar, vá direto para o passo 2.2.
+
 ### 2.2. Se o download falhar por causa do proxy
 
 Em muitas máquinas da rede o `wsl --install` falha porque o download não passa pelo proxy autenticado. Nesse caso, baixe os pacotes com o `curl.exe` (que aceita usuário/senha de proxy) e instale manualmente:
 
 🟦 **PowerShell (Administrador)**
 ```powershell
-# 1) Habilitar os componentes do Windows
+# 0) Checar se o wsl.exe já é o motor completo ou só o "stub" do Windows
+wsl --status
+```
+> Se der erro de argumento desconhecido, ou só mostrar uma lista de uso resumida (sem linhas de versão), o `wsl.exe` desta máquina é só o stub — o motor real do WSL nunca foi instalado. Rode primeiro:
+> ```powershell
+> wsl --install --inbox --no-distribution
+> ```
+> Esse comando instala Virtual Machine Platform, o Subsistema do Windows para Linux e o kernel via DISM/Windows Update — **não** passa pelo mesmo caminho de download que trava com o proxy. Depois de rodar, 🔁 **reinicie o computador** antes de continuar.
+
+🟦 **PowerShell (Administrador)**
+```powershell
+# 1) Habilitar os componentes do Windows (caso o passo 0 acima não tenha sido suficiente)
 dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
 dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
 ```
@@ -102,26 +115,44 @@ dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /nores
 
 🟦 **PowerShell (Administrador)** — abra de novo depois de reiniciar
 ```powershell
-# 2) Baixar o motor do WSL e a distro Ubuntu através do proxy
+wsl --version
+```
+> Confirme que agora aparece a versão completa (WSL, kernel, WSLg etc.), não mais o help resumido. Só continue quando isso estiver certo.
+
+> ⚠️ **Antes de abrir esta janela elevada, confira que ela vai autenticar com a mesma conta Windows da sua sessão normal.** Em algumas redes de domínio (como a PRODEMGE), "Executar como Administrador" pede uma credencial de **outra conta admin** — nesse caso qualquer arquivo salvo em `$env:TEMP` fica no perfil dessa outra conta e "some" quando você volta para o PowerShell comum. Rode `whoami` nas duas janelas e compare; se forem contas diferentes, use uma pasta fixa em vez de `$env:TEMP`, por exemplo `C:\Temp\wsl-install\` (criada com `mkdir -Force`), assim os dois contextos enxergam o mesmo arquivo.
+
+🟦 **PowerShell (Administrador)**
+```powershell
+# 2) Baixar o instalador do WSL (.msi) e a distro Ubuntu através do proxy
 $proxy = "http://proxycamg.prodemge.gov.br:8080"
 $cred  = "SEU_LOGIN:SUA_SENHA"     # aqui NÃO precisa codificar caracteres especiais
+$dest  = "C:\Temp\wsl-install"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
+# Confira a versão mais recente em https://github.com/microsoft/WSL/releases antes de rodar —
+# o nome do arquivo muda a cada release e um link "latest" fixo (ex: Microsoft.WSL.msixbundle)
+# costuma dar 404.
 curl.exe -L -k --fail -x $proxy --proxy-user $cred `
-  -o "$env:TEMP\wsl.msixbundle" `
-  "https://github.com/microsoft/WSL/releases/latest/download/Microsoft.WSL.msixbundle"
+  -o "$dest\wsl.msi" `
+  "https://github.com/microsoft/WSL/releases/download/2.7.3/wsl.2.7.3.0.x64.msi"
 
-curl.exe -L -k --fail -x $proxy --proxy-user $cred `
-  -o "$env:TEMP\ubuntu.appxbundle" `
+curl.exe -L --fail -x $proxy --proxy-user $cred `
+  -o "$dest\ubuntu.appxbundle" `
   "https://wslstorestorage.blob.core.windows.net/wslblob/Ubuntu2404-240425.AppxBundle"
 
-# 3) Instalar
-Add-AppxPackage -Path "$env:TEMP\wsl.msixbundle"
-Add-AppxPackage -Path "$env:TEMP\ubuntu.appxbundle"
+# 3) Instalar — o .msi é mais robusto que o .msixbundle: não depende de Add-AppxPackage
+#    nem da dependência VCLibs, e instala como um programa comum.
+Start-Process msiexec.exe -ArgumentList "/i `"$dest\wsl.msi`" /quiet /norestart" -Wait
+wsl --version    # confirme que retorna a versão completa antes de seguir
+
+# O Ubuntu, por outro lado, é um pacote UWP e precisa mesmo do Add-AppxPackage.
+# Pode ser rodado numa janela SEM privilégios de administrador.
+Add-AppxPackage -Path "$dest\ubuntu.appxbundle"
 wsl --set-default-version 2
 ```
 
 > Se o proxy bloquear o domínio `blob.core.windows.net`, troque a URL do Ubuntu por `https://aka.ms/wslubuntu`.
-> O `-k` ignora o certificado — necessário porque o proxy da PRODEMGE intercepta o SSL.
+> O `-k` ignora o certificado — necessário porque o proxy da PRODEMGE intercepta o SSL (use-o só na chamada do `.msi`; o `.appxbundle` não teve esse problema em teste, mas se travar, adicione `-k` também nessa segunda chamada).
 
 ### 2.3. Criar o usuário do Ubuntu
 
@@ -136,6 +167,14 @@ Confirme que ficou tudo certo:
 ```powershell
 wsl --list --verbose      # deve mostrar Ubuntu-24.04 ... Running/Stopped ... 2
 ```
+
+> **Se `wsl --list` continuar vazio mesmo após o `Add-AppxPackage` "concluir" sem erro:** o pacote registrou, mas o WSL só cria a instância no primeiro lançamento manual do app — e o nome do executável nem sempre aparece de imediato no PATH (`ubuntu2404.exe` pode dar "não reconhecido"). Force o primeiro lançamento assim:
+> ```powershell
+> $pkg = Get-AppxPackage *Ubuntu*
+> $aumid = (Get-AppxPackageManifest $pkg).Package.Applications.Application.Id
+> explorer.exe "shell:AppsFolder\$($pkg.PackageFamilyName)!$aumid"
+> ```
+> Isso abre a janela do Ubuntu como se tivesse clicado no ícone do menu Iniciar, disparando a configuração inicial de usuário/senha.
 
 ---
 
@@ -263,6 +302,8 @@ git clone https://github.com/splor-mg/siafi-automacao-descentralizacao.git
 cd siafi-automacao-descentralizacao
 ```
 
+> Deu **"destination path already exists and is not an empty directory"**? É resquício de uma tentativa anterior — não precisa apagar nada, só entre na pasta com `cd siafi-automacao-descentralizacao` e siga o manual normalmente a partir daí.
+
 Repositório privado? O git pede usuário e senha — use seu usuário do GitHub e um **Personal Access Token (PAT)** no lugar da senha. Para não digitar toda vez:
 
 🟩 **Ubuntu (bash)**
@@ -283,6 +324,16 @@ Se o clone falhar com erro de proxy, revise o passo 3.3 (git precisa do proxy co
 ---
 
 ## 6. Criar o ambiente virtual Python
+
+> Confirme antes que o passo 4 realmente instalou `python3-venv` e `python3-pip` (às vezes essa etapa é pulada sem querer). Se aparecer o erro abaixo, é exatamente isso:
+> ```
+> The virtual environment was not created successfully because ensurepip is not available.
+> ```
+> Resolva com:
+> ```bash
+> sudo apt install -y python3.12-venv python3-pip
+> rm -rf venv     # apaga a tentativa incompleta antes de recriar
+> ```
 
 🟩 **Ubuntu (bash)**
 ```bash
@@ -322,6 +373,19 @@ cp .env.example .env
 chmod 600 .env
 nano .env      # edite e salve com Ctrl+O, Enter, Ctrl+X
 ```
+
+> **Prefere não usar o `nano`?** Dá para criar o arquivo direto via heredoc, sem abrir editor nenhum — só trocar os valores de exemplo pelos seus:
+> ```bash
+> cat > .env <<'EOF'
+> USUARIO=1234567
+> SENHA=sua_senha_do_siafi
+> UNIDADE_EXECUTORA=1500008
+> UNIDADE_ORCAMENTARIA=1501
+> PASTA_WINDOWS=/mnt/c/Users/SEU_USUARIO_WINDOWS/OneDrive - CAMG/General/@dcmefo/2026/Projeto de Descentralização
+> PASTA_LINUX=/home/SEU_USUARIO_LINUX/code/splor-mg/siafi-automacao-descentralizacao/data
+> EOF
+> chmod 600 .env
+> ```
 
 Conteúdo final (digite dentro do editor `nano` que abriu — sem aspas, sem espaço em volta do `=`):
 
@@ -463,6 +527,9 @@ O uso do dia a dia está detalhado no **[RUNBOOK.md](RUNBOOK.md)**.
 | Robô trava ao abrir a tela do x3270 | WSLg indisponível | em `siafi_automacao/descentralizacao.py:223`, troque `visible=True` por `visible=False` |
 | `Nao foi possivel estabelecer conexao` com o SIAFI | fora da rede/VPN, ou `bhmvsb.prodemge.gov.br` indo pelo proxy | ligue a VPN e confirme `.prodemge.gov.br` no `no_proxy` |
 | Erro de leitura de planilha | arquivo aberto no Excel ou sem a aba `Execucao` | feche o Excel e confira a aba |
+| `ensurepip is not available` ao criar o `venv` | `python3-venv` não foi instalado (passo 4 pulado ou incompleto) | `sudo apt install python3.12-venv`, depois `rm -rf venv` e recrie |
+| `Exec format error` ao rodar `code .` (ou outro `.exe` do Windows) dentro do Ubuntu | interoperabilidade WSL↔Windows não registrada | confira com `cat /proc/sys/fs/binfmt_misc/WSLInterop`; se ausente/desabilitado, adicione `[interop]\nenabled=true` em `/etc/wsl.conf` e rode `wsl --shutdown` **no PowerShell** (não dentro do bash — `exit` primeiro) |
+| `wsl` command not found dentro do bash do Ubuntu | comando digitado no terminal errado | `wsl.exe` só existe no lado Windows; dê `exit` para sair do Ubuntu antes de rodar comandos `wsl --...` |
 
 ---
 
