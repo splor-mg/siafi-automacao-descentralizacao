@@ -231,6 +231,18 @@ em.fill_field(20, 13, usuario, 8)
 em.fill_field(21, 13, senha, 7)
 em.send_enter()
 
+# Checa antes do loop: o loop dá Enter antes de ler a tela, o que submeteria a
+# tela de troca de senha em branco e apagaria a mensagem.
+time.sleep(1)
+if 'SENHA EXPIRADA' in em.string_get(23, 1, 80).upper():
+    print("")
+    print("=" * 70)
+    print("Senha expirada. Abra o SIAFI manualmente e atualize sua senha.")
+    print("Apos isso, salve a nova senha no arquivo .env e execute o script novamente.")
+    print("=" * 70)
+    em.terminate()
+    sys.exit(3)
+
 # Loop: navega pelas telas até encontrar a mensagem de sucesso
 max_tentativas = 10
 tentativas = 0
@@ -245,7 +257,7 @@ while tentativas < max_tentativas:
         if em.string_found(1, 13, 'Logon executado com sucesso'):
             print("Login realizado com sucesso!")
             break
-        elif em.string_found(23, 2, 'Senha expirada. Digite Nova Senha.'):
+        elif 'SENHA EXPIRADA' in em.string_get(23, 1, 80).upper():
             print("")
             print("=" * 70)
             print("Senha expirada. Abra o SIAFI manualmente e atualize sua senha.")
@@ -268,6 +280,7 @@ while tentativas < max_tentativas:
 if tentativas == max_tentativas:
     print("Não foi possível fazer login após várias tentativas.")
     em.terminate()
+    sys.exit(1)
 
 em.fill_field(1, 2, sistema, 4)
 em.send_enter()
@@ -302,6 +315,7 @@ while tentativas < max_tentativas:
 if tentativas == max_tentativas:
     print("Não foi possível fazer login após várias tentativas.")
     em.terminate()
+    sys.exit(1)
 
 #Entrar com a Unidade Executora
 em.fill_field(22, 30, unidade_executora, 7)
