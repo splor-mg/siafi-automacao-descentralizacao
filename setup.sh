@@ -34,6 +34,16 @@ urlencode() {
     printf '%s' "$out"
 }
 
+# Acrescenta uma linha ao .env. Antes garante que o arquivo termina em quebra
+# de linha: um .env salvo pelo Bloco de Notas do Windows pode não terminar, e a
+# chave nova ficaria grudada no fim da última linha, estragando as duas.
+anexar_env() {
+    if [ -s .env ] && [ -n "$(tail -c1 .env)" ]; then
+        printf '\n' >> .env
+    fi
+    printf '%s\n' "$1" >> .env
+}
+
 echo ""
 echo "=== Configurando ambiente Ubuntu para o robô SIAFI (Descentralização) ==="
 echo ""
@@ -135,16 +145,16 @@ pip install --quiet ${PIP_PROXY} ${PIP_TRUSTED} -r requirements.txt
 echo "Dependências Python instaladas."
 
 # -------------------------------------------------------------------
-# 5. Aviso WSLg (necessário para visible=True no x3270)
+# 5. Aviso WSLg (necessário para a janela do x3270; ver SIAFI_VISIVEL)
 # -------------------------------------------------------------------
 echo ""
 echo "[5/6] Verificando suporte a interface gráfica (WSLg)..."
 if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
     echo ""
     echo "AVISO: WSLg não detectado nesta sessão."
-    echo "O descentralizacao.py usa Emulator(visible=True), que abre a janela gráfica do x3270."
-    echo "Se o robô falhar ao abrir a janela, altere visible=True para visible=False"
-    echo "em siafi_automacao/descentralizacao.py para rodar sem interface gráfica."
+    echo "Por padrão o robô abre a janela gráfica do x3270 para você acompanhar."
+    echo "Se ele falhar ao abrir a janela, acrescente a linha SIAFI_VISIVEL=false"
+    echo "ao arquivo .env para rodar sem interface gráfica."
     echo ""
 else
     echo "WSLg disponível (DISPLAY=$DISPLAY)."
@@ -170,12 +180,26 @@ if ! grep -q "^USUARIO=" .env 2>/dev/null; then
     read -rp  "  USUARIO: "                      USUARIO
     read -rsp "  SENHA (não aparece na tela): "  SENHA
     echo ""
-    read -rp  "  UNIDADE_EXECUTORA (ex: 1500008): " UNIDADE_EXECUTORA
-    printf 'USUARIO=%s\nSENHA=%s\nUNIDADE_EXECUTORA=%s\n' \
-        "$USUARIO" "$SENHA" "$UNIDADE_EXECUTORA" >> .env
+    read -rp  "  UNIDADE_EXECUTORA, 7 dígitos (ex: 1500008): " UNIDADE_EXECUTORA
+    anexar_env "USUARIO=$USUARIO"
+    anexar_env "SENHA=$SENHA"
+    anexar_env "UNIDADE_EXECUTORA=$UNIDADE_EXECUTORA"
     echo "Credenciais SIAFI salvas."
 else
     echo ".env já contém as credenciais — mantendo variáveis existentes."
+fi
+
+# UO da unidade executora: o robô a digita em toda descentralização. Perguntada
+# à parte para que uma instalação antiga, feita antes de esta chave existir,
+# seja completada sem pedir de novo o que já está no .env.
+if ! grep -q "^UNIDADE_ORCAMENTARIA=" .env 2>/dev/null; then
+    echo ""
+    UNIDADE_ORCAMENTARIA=""
+    while [ -z "$UNIDADE_ORCAMENTARIA" ]; do
+        read -rp "  UNIDADE_ORCAMENTARIA da sua unidade executora, 4 dígitos (ex: 1501): " UNIDADE_ORCAMENTARIA
+    done
+    anexar_env "UNIDADE_ORCAMENTARIA=$UNIDADE_ORCAMENTARIA"
+    echo "UNIDADE_ORCAMENTARIA salva."
 fi
 
 # Pasta-raiz "Projeto de Descentralização" — pergunta o caminho-pai, cria a
@@ -222,13 +246,13 @@ if ! grep -q "^PASTA_WINDOWS=" .env 2>/dev/null; then
         "$PROJETO_BASE/Realizados/Conferencia Realizados"
     echo "Pastas criadas (ou já existentes)."
 
-    printf 'PASTA_WINDOWS=%s\n' "$PROJETO_BASE" >> .env
+    anexar_env "PASTA_WINDOWS=$PROJETO_BASE"
     echo "PASTA_WINDOWS salvo."
 fi
 
 # Pasta de trabalho local (Linux) — padrão: a pasta data/ deste repositório
 if ! grep -q "^PASTA_LINUX=" .env 2>/dev/null; then
-    printf 'PASTA_LINUX=%s\n' "$REPO_DIR/data" >> .env
+    anexar_env "PASTA_LINUX=$REPO_DIR/data"
     echo "PASTA_LINUX definido como $REPO_DIR/data."
 fi
 
@@ -241,6 +265,6 @@ touch "$REPO_DIR/.setup_done"
 
 echo ""
 echo "============================================================"
-echo "  Configuração concluída! O robô será iniciado em seguida."
+echo "  Configuração concluída! Para usar, execute o robo.bat."
 echo "============================================================"
 echo ""

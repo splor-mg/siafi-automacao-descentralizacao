@@ -71,10 +71,14 @@ function Test-WslEngineActive {
 }
 
 function Test-SetupDone {
+    # Alem do marcador, confere as chaves do .env que o setup.sh coleta: se
+    # faltar alguma, o setup.sh roda de novo e pergunta so as que estao
+    # faltando (o que ja esta no .env e mantido).
     param([string]$DistroName)
     wsl -d $DistroName -- bash -c "
         test -f ~/code/splor-mg/siafi-automacao-descentralizacao/.setup_done &&
-        grep -q '^PASTA_WINDOWS=' ~/code/splor-mg/siafi-automacao-descentralizacao/.env 2>/dev/null
+        grep -q '^PASTA_WINDOWS=' ~/code/splor-mg/siafi-automacao-descentralizacao/.env 2>/dev/null &&
+        grep -q '^UNIDADE_ORCAMENTARIA=' ~/code/splor-mg/siafi-automacao-descentralizacao/.env 2>/dev/null
     " 2>$null
     return $LASTEXITCODE -eq 0
 }
