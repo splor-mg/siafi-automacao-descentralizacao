@@ -67,8 +67,12 @@ titulo "[2] Arquivos do robô"
 for f in \
     consolida.py \
     siafi_automacao/descentralizacao.py \
+    siafi_automacao/fluxo_desc.py \
     siafi_automacao/fluxo_anular_desc.py \
     siafi_automacao/fluxo_aprovar_desc.py \
+    siafi_automacao/arquivos.py \
+    siafi_automacao/emulador.py \
+    siafi_automacao/validacao.py \
     requirements.txt
 do
     if [ -f "$REPO_DIR/$f" ]; then ok "$f"; else erro "faltando: $f"; fi
@@ -119,8 +123,7 @@ done
 titulo "[5] Arquivo .env"
 if [ -f "$ENV_FILE" ]; then
     ok ".env encontrado"
-    # Todas obrigatórias: o código lê e usa cada uma. UNIDADE_ORCAMENTARIA é o
-    # ponto cego do setup.sh (ele não grava essa chave) — por isso é checada aqui.
+    # Todas obrigatórias: o código lê e usa cada uma.
     for chave in USUARIO SENHA UNIDADE_EXECUTORA UNIDADE_ORCAMENTARIA PASTA_WINDOWS; do
         valor="$(env_val "$chave")"
         if [ -n "$valor" ]; then
@@ -181,13 +184,17 @@ if [ -n "$pasta_lin" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 7. Interface gráfica (WSLg) — necessária só se usar Emulator(visible=True)
+# 7. Interface gráfica (WSLg) — necessária só para a janela do x3270, que o
+#    robô abre por padrão. SIAFI_VISIVEL=false no .env roda sem ela.
 # ---------------------------------------------------------------------------
 titulo "[7] Interface gráfica (WSLg)"
-if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+visivel="$(env_val SIAFI_VISIVEL | tr '[:upper:]' '[:lower:]')"
+if [ "$visivel" = "false" ]; then
+    ok "SIAFI_VISIVEL=false — o robô roda sem a janela do SIAFI"
+elif [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     ok "WSLg disponível (DISPLAY=${DISPLAY:-}${WAYLAND_DISPLAY:+ WAYLAND_DISPLAY=$WAYLAND_DISPLAY})"
 else
-    aviso "WSLg não detectado — só é problema se o descentralizacao.py usar visible=True; nesse caso troque para visible=False"
+    aviso "WSLg não detectado — se o robô não conseguir abrir a janela do SIAFI, acrescente SIAFI_VISIVEL=false ao .env"
 fi
 
 # ---------------------------------------------------------------------------

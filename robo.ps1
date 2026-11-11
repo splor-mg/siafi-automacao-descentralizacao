@@ -170,9 +170,17 @@ Write-Host "Trazendo as planilhas do OneDrive e consolidando..." -ForegroundColo
 wsl -d $Distro -- bash -c "cd ~/code/splor-mg/siafi-automacao-descentralizacao && source venv/bin/activate && PYTHONIOENCODING=utf-8 python consolida.py"
 $codigoConsolida = $LASTEXITCODE
 
-# Codigo 2 = nada a consolidar (pasta "Remanejados" vazia). Nao e erro, mas o robo
-# tambem nao pode seguir: sem consolidado novo ele reprocessaria a conferencia
-# anterior, refazendo no SIAFI operacoes que ja foram feitas.
+# Codigo 10 = outra execucao do robo ja esta em andamento neste computador
+# (ver travar_execucao em siafi_automacao/arquivos.py). Nada foi tocado.
+if ($codigoConsolida -eq 10) {
+    Write-Host ""
+    Write-Host "Ja existe uma execucao do robo em andamento. Aguarde ela terminar." -ForegroundColor Yellow
+    exit 10
+}
+
+# Codigo 2 = nada a fazer: pasta "Remanejados" vazia e nenhuma conferencia com
+# linha pendente para retomar. Nao e erro, mas o robo tambem nao e iniciado.
+# (Quando ha conferencia interrompida para retomar, o consolida.py devolve 0.)
 if ($codigoConsolida -eq 2) {
     Write-Host ""
     Write-Host "Nenhuma planilha nova para processar. O robo nao sera iniciado." -ForegroundColor Yellow
@@ -196,7 +204,7 @@ if ($codigo -eq 3) {
     Write-Host ""
     Write-Host "Senha expirada. Abra o SIAFI manualmente e atualize sua senha." -ForegroundColor Yellow
     Write-Host "Vou abrir o arquivo .env para voce salvar a nova senha (campo SENHA)." -ForegroundColor Yellow
-    Write-Host "Depois de salvar o .env, rode o robo novamente." -ForegroundColor Yellow
+    Write-Host "Depois de salvar o .env, rode o robo novamente: nada foi enviado ao SIAFI." -ForegroundColor Yellow
 
     $envWin = wsl -d $Distro -- bash -c 'wslpath -w $HOME/code/splor-mg/siafi-automacao-descentralizacao/.env'
     if ($envWin) {
@@ -207,9 +215,16 @@ if ($codigo -eq 3) {
     exit $codigo
 }
 
+if ($codigo -eq 10) {
+    Write-Host ""
+    Write-Host "Ja existe uma execucao do robo em andamento. Aguarde ela terminar." -ForegroundColor Yellow
+    exit $codigo
+}
+
 if ($codigo -ne 0) {
     Write-Host ""
     Write-Host "O robo encerrou com erro (codigo $codigo)." -ForegroundColor Red
+    Write-Host "Leia as mensagens acima: elas dizem o que foi feito e o que fazer agora." -ForegroundColor Yellow
 }
 
 exit $codigo
