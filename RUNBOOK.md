@@ -6,7 +6,9 @@ Este manual ensina, passo a passo, como usar o robô. **Você não precisa saber
 
 ## O que o robô faz
 
-O robô junta todas as planilhas de **descentralização de cota** que você colocar na pasta `Remanejados`, monta uma planilha única (a "conferência") na pasta `Conferencia`, entra no SIAFI sozinho e faz cada operação de aprovação ou anulação, uma por uma. No final, ele preenche essa conferência dizendo o que deu certo e o que deu errado.
+O robô junta todas as planilhas de **descentralização de cota** que você colocar na pasta `Remanejados`, confere se estão preenchidas corretamente, monta uma planilha única (a "conferência") na pasta `Conferencia`, entra no SIAFI sozinho e faz cada operação de aprovação ou anulação, uma por uma. No final, ele preenche essa conferência dizendo o que deu certo e o que deu errado.
+
+Se alguma coisa impedir o robô de trabalhar, ele **não deixa nada pela metade sem avisar**: ou devolve as suas planilhas para a pasta `Remanejados` (quando nada foi feito no SIAFI), ou devolve a conferência mostrando exatamente até onde chegou. Veja **"Quando algo dá errado"** mais abaixo.
 
 ---
 
@@ -43,19 +45,20 @@ O robô só funciona dentro da rede da SEPLAG.
 - Uma **janela preta** vai abrir na tela. É normal. **Não feche.**
 - A primeira coisa que ela mostra é `Atualizando o robo...` — o robô se atualiza sozinho com a versão mais recente antes de rodar. É normal.
 - Pode abrir também a **tela do SIAFI** (um terminal). **Não feche e não clique nessa tela** — é o robô "digitando" sozinho.
-- Primeiro o robô junta todas as planilhas da pasta `Remanejados` em uma só e a coloca na pasta `Conferencia`.
+- Primeiro o robô confere e junta todas as planilhas da pasta `Remanejados` em uma só e a coloca na pasta `Conferencia`. Se encontrar algum erro de preenchimento, ele **para aqui**, lista os erros e não mexe em nada (veja "Quando algo dá errado").
 - Em seguida ele entra no SIAFI e faz cada linha, uma por uma. Na janela preta vão aparecendo os resultados.
+- No final aparece um **resumo**: quantas linhas deram certo, quantas o SIAFI recusou e quantas ficaram por fazer.
 
-> **Você pode usar o computador normalmente enquanto o robô trabalha** (e-mail, navegador, planilhas, etc.). O robô controla o SIAFI "por dentro", então digitar ou clicar em **outros** programas **não atrapalha**. A única regra é: **não feche nem clique nas janelas do próprio robô** (a janela preta e a tela do SIAFI).
+> **Você pode usar o computador normalmente enquanto o robô trabalha** (e-mail, navegador, planilhas, etc.). O robô controla o SIAFI "por dentro", então digitar ou clicar em **outros** programas **não atrapalha**. As regras são: **não feche nem clique nas janelas do próprio robô** (a janela preta e a tela do SIAFI), **não abra a planilha da pasta `Conferencia` enquanto ele trabalha** e **não clique no robô uma segunda vez** antes de ele terminar.
 
 ## Passo 5 — Conferir o resultado
 
 1. Quando o robô terminar, abra a subpasta **`Conferencia`** (dentro de `Projeto de Descentralização`).
 2. Abra o arquivo **`Conferencia Arquivo Robo DD.MM.xlsx`** (onde `DD.MM` é a data de hoje) — é a planilha já processada que o robô devolveu.
-3. Olhe a coluna **Progresso**: ela mostra, linha por linha, o que deu certo (`Ok`) e o que deu errado.
+3. Olhe a coluna **Progresso**: ela mostra, linha por linha, o que deu certo (`Ok - número do documento`) e o que deu errado. O significado de cada texto está na tabela **"O que significa a coluna Progresso"**, mais abaixo.
 
 > - As planilhas que você colocou em `Remanejados` são movidas pelo robô para `Realizados\Remanejamento Realizados`, para não serem processadas de novo.
-> - A cada execução, a conferência anterior que estava em `Conferencia` é movida para `Realizados\Conferencia Realizados`. Se você rodar mais de uma vez no mesmo dia, os arquivos antigos ganham ` (1)`, ` (2)`... no nome, para nada ser sobrescrito.
+> - A cada execução com planilhas novas, a conferência anterior que estava em `Conferencia` é movida para `Realizados\Conferencia Realizados`. Se você rodar mais de uma vez no mesmo dia, os arquivos antigos ganham ` (1)`, ` (2)`... no nome, para nada ser sobrescrito.
 
 **Acabou.** Para rodar de novo, é só repetir a PARTE 1 desde o Passo 1.
 
@@ -100,7 +103,8 @@ A primeira instalação tem **2 etapas**, com **um reinício no meio**. Você va
    |-----------------|--------|
    | `USUARIO` | O seu login do SIAFI |
    | `SENHA` | A sua senha do SIAFI *(não aparece ao digitar)* |
-   | `UNIDADE_EXECUTORA` | O código da sua unidade. Exemplo: `1451` |
+   | `UNIDADE_EXECUTORA` | O código da sua unidade executora, com 7 dígitos. Exemplo: `1500008` |
+   | `UNIDADE_ORCAMENTARIA` | O código da unidade orçamentária da sua unidade, com 4 dígitos. Exemplo: `1501` |
 
    **c) Pasta do projeto** — *"Qual o caminho que irá ser utilizado no projeto?"*
    - Cole a pasta **onde** o projeto deve ficar (o robô cria a `Projeto de Descentralização` e as subpastas lá dentro). Exemplo:
@@ -149,7 +153,13 @@ Quando o robô termina, ele escreve o resultado de cada linha na coluna **Progre
 
 | O que está escrito | O que significa |
 |--------------------|-----------------|
-| `Ok` | Deu tudo certo |
+| `Ok - 2026...` | Deu tudo certo. O número é o do documento gerado no SIAFI |
+| `INTERROMPIDA - VERIFICAR NO SIAFI` | O robô parou no meio desta linha e **não sabe se ela entrou no SIAFI**. Confira no SIAFI. Ela não é refeita sozinha (veja "O robô parou no meio") |
+| `SEM RETORNO DO SIAFI - VERIFICAR NO SIAFI` | O robô enviou a linha, mas o SIAFI não devolveu mensagem. Confira no SIAFI se ela entrou |
+| `Linha inválida: ...` | A linha está preenchida de um jeito que o robô não aceita (o texto diz a coluna e o problema). Ela **não** foi enviada ao SIAFI |
+| `Operação não confirmada no SIAFI` | O SIAFI não aceitou a confirmação final. A operação **não** foi feita |
+| `Erro de saldo contábil` | O SIAFI acusou inconsistência na contabilização. A operação **não** foi feita |
+| `SIAFI indisponível para atualização, tente mais tarde` | O SIAFI estava fora do ar para gravação. A operação **não** foi feita |
 | `Saldo zerado na conta` | Não tinha saldo para fazer a operação |
 | `Proj/Ativ ou Fonte/Proc./IAG inexistente para a UO` | Uma classificação não foi encontrada |
 | `Natureza de despesa inexistente` | A natureza de despesa informada não existe |
@@ -164,38 +174,72 @@ Quando o robô termina, ele escreve o resultado de cada linha na coluna **Progre
 | `Valor informado além do valor descentralizado` | O valor passa do que foi descentralizado |
 
 > As linhas que já tinham a coluna Progresso preenchida são **puladas**. O robô só faz as que ainda estão em branco.
+>
+> Se aparecer na coluna um texto que não está nesta tabela (em geral começando com um número, como `0139- ...`), é a mensagem do SIAFI do jeito que ela veio: a operação **não** foi feita. Mande um print para o suporte técnico da DCMEFO para a mensagem ser incluída na tabela.
 
 ---
 
 # Quando algo dá errado
 
-## A janela preta fechou sozinha, sem dizer nada
+## Apareceu "VALIDAÇÃO ENCONTROU ... PROBLEMA(S). Nada foi consolidado."
 
-- Provavelmente um arquivo Excel estava aberto. **Feche o Excel** e tente de novo.
-- Ou não havia nenhuma planilha na pasta `Remanejados (Insira seu arquivo aqui)`. Confira o Passo 2 da PARTE 1.
+Alguma planilha está preenchida de um jeito que o robô não aceita. Ele lista, uma por linha, **o arquivo, a linha do Excel, a coluna e o que encontrou**. Nada foi movido nem enviado ao SIAFI.
 
-## Apareceu "Nao foi possivel estabelecer conexao com o servidor"
+1. Abra a planilha indicada (ela continua na pasta `Remanejados`) e corrija os itens da lista.
+2. **Salve e feche** o Excel.
+3. Rode o robô de novo.
 
-O robô não conseguiu entrar no SIAFI. Confira:
-- Você está na rede da SEPLAG ou com a VPN ligada?
-- O SIAFI está funcionando no seu navegador?
+## Apareceu "Nenhuma planilha nova para processar"
 
-Feche a janela preta e tente de novo desde o Passo 3.
+Não havia planilha na pasta `Remanejados (Insira seu arquivo aqui)`, nem trabalho interrompido para continuar. Confira o Passo 2 da PARTE 1. A planilha precisa ser um arquivo do Excel no formato `.xlsx`.
+
+## Apareceu "Não foi possível conectar ao SIAFI"
+
+O robô não conseguiu chegar ao SIAFI. **Nada foi feito, e as suas planilhas voltaram para a pasta `Remanejados`.** Confira:
+- Você está na rede do governo ou com a VPN ligada?
+- O SIAFI está funcionando quando você entra nele do jeito de sempre?
+
+Depois é só rodar o robô de novo desde o Passo 3.
+
+## O robô parou no meio (apareceu "Execução interrompida")
+
+Pode acontecer se a conexão cair, se o SIAFI sair do ar ou se a janela do robô for fechada. **Não refaça a planilha inteira** — parte dela já está no SIAFI.
+
+1. Abra a conferência na pasta **`Conferencia`**. As linhas com `Ok` já foram feitas. As linhas com a coluna **Progresso em branco** ainda não foram.
+2. Se houver uma linha marcada **`INTERROMPIDA - VERIFICAR NO SIAFI`**, entre no SIAFI e veja se aquela operação foi registrada:
+   - **Foi registrada:** não faça nada, deixe a linha como está.
+   - **Não foi registrada:** apague o que está escrito na coluna Progresso dessa linha (deixe a célula vazia) e salve.
+3. **Feche o Excel.**
+4. Rode o robô de novo, **sem colocar planilha nova** na pasta `Remanejados`. Ele avisa que está **retomando** e faz só as linhas em branco.
+
+> Se você fechou a janela do robô sem querer, o caminho é o mesmo: rode de novo que ele traz a conferência de volta e continua.
+>
+> Se você colocar uma planilha **nova** antes de terminar a que foi interrompida, o robô processa só a nova, arquiva a antiga e **avisa quantas linhas dela ficaram sem fazer**. Prefira terminar a interrompida primeiro.
+>
+> O robô só retoma sozinho uma conferência interrompida nos últimos **7 dias**. Depois disso, coloque as linhas que faltam em uma planilha nova.
+
+## Apareceu "Ja existe uma execucao do robo em andamento"
+
+O robô já está rodando em outra janela. Espere ele terminar. Não abra dois ao mesmo tempo.
+
+## Apareceu "ERRO: o ambiente tem pendencias"
+
+Está faltando alguma coisa da instalação neste computador. Clique duas vezes em **verificar** (`verificar.bat`), tire um print da tela e mande para o suporte técnico da DCMEFO.
 
 ## Apareceu "Senha expirada" e abriu um arquivo no Bloco de Notas
 
-Sua senha do SIAFI **venceu**. O robô para, avisa, e **abre sozinho o arquivo `.env`** no Bloco de Notas para você atualizar a senha. Faça assim:
+Sua senha do SIAFI **venceu**. O robô para, avisa, e **abre sozinho o arquivo `.env`** no Bloco de Notas para você atualizar a senha. Nada foi feito no SIAFI, e as suas planilhas voltaram para a pasta `Remanejados`. Faça assim:
 
 1. Entre no **SIAFI manualmente** (do jeito de sempre) e **troque a sua senha** por uma nova.
 2. No arquivo `.env` que abriu, ache a linha que começa com `SENHA=` e troque pela **nova senha**.
 3. **Salve** o arquivo (Ctrl + S) e feche o Bloco de Notas.
 4. Rode o **robo.bat** de novo (PARTE 1).
 
-## Apareceu "Nao foi possivel fazer login apos varias tentativas"
+## Apareceu "Não foi possível fazer login no SIAFI após várias tentativas"
 
-O robô não conseguiu entrar no SIAFI. Confira:
-- A `SENHA` no arquivo `.env` está correta? *(veja como abrir o `.env` no item acima)*
-- Você está na rede da SEPLAG ou com a VPN ligada?
+O robô chegou ao SIAFI, mas não conseguiu entrar. Nada foi feito, e as suas planilhas voltaram para a pasta `Remanejados`. Confira:
+- O `USUARIO` e a `SENHA` no arquivo `.env` estão corretos?
+- Você consegue entrar no SIAFI manualmente com esse usuário e essa senha?
 
 Se continuar, peça ajuda ao **suporte técnico da DCMEFO**.
 

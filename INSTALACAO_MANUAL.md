@@ -6,7 +6,7 @@ O uso do dia a dia continua sendo só o **`robo.bat`**. Você nunca precisa roda
 
 ---
 
-## Antes de começar — 2 coisas importantes
+## Antes de começar — 3 coisas importantes
 
 **1. Reinício do Windows é obrigatório, não opcional.**
 Sempre que um comando abaixo disser "reinicie" — ou o Windows avisar "é necessário reiniciar" — reinicie **antes** de continuar, mesmo que o comando pareça ter funcionado. Pular esse passo é a causa mais comum do WSL ficar "meio instalado" e dar erro estranho depois. Cada ponto do manual onde isso pode acontecer está marcado com 🔁.
@@ -402,10 +402,13 @@ PASTA_LINUX=/home/SEU_USUARIO_LINUX/code/splor-mg/siafi-automacao-descentralizac
 |---|---|---|
 | `USUARIO` | login do SIAFI (normalmente o MASP com dígito verificador) | sim |
 | `SENHA` | senha do SIAFI (não é a da rede/proxy) | sim |
-| `UNIDADE_EXECUTORA` | 6–7 dígitos | sim |
+| `UNIDADE_EXECUTORA` | 7 dígitos | sim |
 | `UNIDADE_ORCAMENTARIA` | 4 dígitos | sim |
 | `PASTA_WINDOWS` | pasta-raiz `Projeto de Descentralização`, em formato WSL (`/mnt/c/...`) | sim |
 | `PASTA_LINUX` | pasta de trabalho local; se faltar, usa `<repo>/data` | opcional |
+| `SIAFI_VISIVEL` | `false` roda sem abrir a janela do SIAFI (para quando não há WSLg); padrão `true` | opcional |
+
+> `USUARIO` e `SENHA` têm no máximo 8 caracteres cada: é o tamanho do campo na tela do SIAFI. Se um deles passar disso, o robô avisa e não tenta o login.
 
 > O sistema de acesso (`simg`) é fixo no código e não vai no `.env`.
 
@@ -499,14 +502,16 @@ Ele confere repositório, arquivos, venv, dependências, `s3270`/`x3270`, todas 
 
 Ordem de execução: verifica o ambiente → `git pull` (se falhar por proxy, só avisa e segue com a versão local) → `consolida.py` → `descentralizacao.py`.
 
-Códigos de saída úteis:
+Códigos de saída do `robo.bat`:
 
 | Código | Significado | O que fazer |
 |---|---|---|
-| `0` | tudo certo | conferir a coluna `Progresso` do arquivo em `Conferencia` |
-| `2` | pasta `Remanejados` vazia | colocar as planilhas e rodar de novo |
-| `3` | senha do SIAFI expirada | trocar a senha no SIAFI, atualizar `SENHA` no `.env` (o robô abre o arquivo sozinho) e rodar de novo |
-| `1` / outros | pendência de ambiente ou erro na consolidação | rodar o `verificar.bat` e ler as mensagens |
+| `0` | foi até o fim, ou não havia planilha nova nem linha pendente | conferir a coluna `Progresso` do arquivo em `Conferencia` |
+| `3` | senha do SIAFI expirada; nada foi enviado e as planilhas voltaram para `Remanejados` | trocar a senha no SIAFI, atualizar `SENHA` no `.env` (o robô abre o arquivo sozinho) e rodar de novo |
+| `10` | já existe outra execução do robô em andamento | esperar terminar |
+| `1` / outros | pendência de ambiente, erro de preenchimento nas planilhas, falha de conexão/login ou execução interrompida | ler as mensagens da janela — elas dizem o que foi feito e o que fazer; para pendência de ambiente, rodar o `verificar.bat` |
+
+Se a execução for interrompida no meio, a conferência volta para a pasta `Conferencia` com o que já foi feito, e rodar de novo **sem planilha nova** retoma as linhas em branco. O passo a passo para quem usa está no RUNBOOK ("O robô parou no meio").
 
 O uso do dia a dia está detalhado no **[RUNBOOK.md](RUNBOOK.md)**.
 
@@ -524,9 +529,10 @@ O uso do dia a dia está detalhado no **[RUNBOOK.md](RUNBOOK.md)**.
 | `[FALHA] repositorio nao encontrado` | clonou em outro caminho | mova para `~/code/splor-mg/siafi-automacao-descentralizacao` |
 | `[FALHA] PASTA_WINDOWS não acessível` | OneDrive não sincronizado, ou caminho em formato Windows no `.env` | baixe a pasta localmente; use `/mnt/c/...` (`wslpath -u`) |
 | `[FALHA] UNIDADE_ORCAMENTARIA ausente` | chave esquecida no `.env` | adicione a linha `UNIDADE_ORCAMENTARIA=` |
-| Robô trava ao abrir a tela do x3270 | WSLg indisponível | em `siafi_automacao/descentralizacao.py:223`, troque `visible=True` por `visible=False` |
-| `Nao foi possivel estabelecer conexao` com o SIAFI | fora da rede/VPN, ou `bhmvsb.prodemge.gov.br` indo pelo proxy | ligue a VPN e confirme `.prodemge.gov.br` no `no_proxy` |
-| Erro de leitura de planilha | arquivo aberto no Excel ou sem a aba `Execucao` | feche o Excel e confira a aba |
+| Robô trava ao abrir a tela do x3270 | WSLg indisponível | acrescente a linha `SIAFI_VISIVEL=false` ao `.env` (não altere o código: arquivo modificado localmente faz o `git pull` automático parar de funcionar) |
+| `Não foi possível conectar ao SIAFI` | fora da rede/VPN, ou `bhmvsb.prodemge.gov.br` indo pelo proxy | ligue a VPN e confirme `.prodemge.gov.br` no `no_proxy`; as planilhas voltam sozinhas para `Remanejados` |
+| Erro de leitura de planilha | arquivo aberto no Excel, sem a aba `Execucao` ou em formato `.xls` | feche o Excel, confira a aba e salve como `.xlsx` |
+| `Ja existe uma execucao do robo em andamento` sem nenhum robô aberto | sobrou um processo do robô ou do x3270 de uma execução anterior | feche a janela do SIAFI que tiver ficado aberta; se persistir, rode `wsl --shutdown` no PowerShell e tente de novo |
 | `ensurepip is not available` ao criar o `venv` | `python3-venv` não foi instalado (passo 4 pulado ou incompleto) | `sudo apt install python3.12-venv`, depois `rm -rf venv` e recrie |
 | `Exec format error` ao rodar `code .` (ou outro `.exe` do Windows) dentro do Ubuntu | interoperabilidade WSL↔Windows não registrada | confira com `cat /proc/sys/fs/binfmt_misc/WSLInterop`; se ausente/desabilitado, adicione `[interop]\nenabled=true` em `/etc/wsl.conf` e rode `wsl --shutdown` **no PowerShell** (não dentro do bash — `exit` primeiro) |
 | `wsl` command not found dentro do bash do Ubuntu | comando digitado no terminal errado | `wsl.exe` só existe no lado Windows; dê `exit` para sair do Ubuntu antes de rodar comandos `wsl --...` |

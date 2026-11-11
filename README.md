@@ -14,12 +14,12 @@ O SIAFI roda em um terminal TN3270. Este projeto usa a biblioteca **py3270** par
 
 ## Funcionalidades
 
-- Consolidação de várias planilhas de descentralização em um único arquivo (`consolida.py`)
-- Login automático no SIAFI com tratamento de telas de aviso
-- Leitura da planilha consolidada com os dados das operações
-- Aprovação de descentralização de cota (global e amarrada)
-- Anulação de descentralização de cota
+- Validação e consolidação de várias planilhas de descentralização em um único arquivo (`consolida.py`)
+- Login automático no SIAFI com tratamento de telas de aviso e de senha expirada
+- Aprovação e anulação de descentralização de cota (global e amarrada)
 - Captura do retorno do SIAFI (sucesso ou erro) para cada operação, gravado na coluna `Progresso`
+- Se parar antes de enviar qualquer linha, as planilhas voltam para a pasta de entrada
+- Se parar no meio, a conferência volta para a pasta com o que já foi feito e a execução seguinte continua de onde parou
 
 ---
 
@@ -28,9 +28,10 @@ O SIAFI roda em um terminal TN3270. Este projeto usa a biblioteca **py3270** par
 Para uso em produção no Windows, os scripts de instalação cuidam de tudo (instalam o WSL/Ubuntu, clonam o repositório, criam o `venv` e coletam as credenciais):
 
 1. `instalar.bat` — primeira instalação (instala WSL/Ubuntu e configura o ambiente).
-2. `robo.bat` — execução do dia a dia (consolida as planilhas e roda a descentralização).
+2. `robo.bat` — execução do dia a dia (confere o ambiente, atualiza o robô, consolida as planilhas e roda a descentralização).
+3. `verificar.bat` — diagnóstico: lista o que falta para o robô rodar, sem alterar nada.
 
-Os `.bat` apenas chamam os respectivos `.ps1` (`instalar.ps1`, `robo.ps1`), que por sua vez executam o `setup.sh` dentro do Ubuntu. Detalhes de uso no **[RUNBOOK.md](RUNBOOK.md)**.
+Os `.bat` apenas chamam os respectivos `.ps1`, que executam o restante dentro do Ubuntu. Detalhes de uso no **[RUNBOOK.md](RUNBOOK.md)**; para instalar à mão em máquina com proxy, veja o **[INSTALACAO_MANUAL.md](INSTALACAO_MANUAL.md)**.
 
 ---
 
@@ -61,13 +62,16 @@ Copie o `.env.example` para `.env` e preencha (veja [.env.example](.env.example)
 ```
 USUARIO=seu_usuario
 SENHA=sua_senha
-UNIDADE_EXECUTORA=1451
+UNIDADE_EXECUTORA=1500008
+UNIDADE_ORCAMENTARIA=1501
 
-# Pasta no OneDrive (Windows, via /mnt/c) onde as planilhas são colocadas;
-# o consolidado processado é devolvido aqui ao final.
-PASTA_WINDOWS=/mnt/c/Users/SEU_USUARIO/OneDrive - CAMG/.../Descentralizacao de cota
+# Pasta-raiz "Projeto de Descentralização" (Windows, via /mnt/c).
+PASTA_WINDOWS=/mnt/c/Users/SEU_USUARIO/OneDrive - CAMG/.../Projeto de Descentralização
 # Pasta de trabalho local (Linux) — normalmente a pasta data/ deste repositório.
 PASTA_LINUX=/home/SEU_USUARIO/code/splor-mg/siafi-automacao-descentralizacao/data
+
+# Opcional: false roda sem abrir a janela do SIAFI (quando não há WSLg).
+#SIAFI_VISIVEL=true
 ```
 
 > O sistema de acesso é fixo (`simg`) no código, por isso não vai no `.env`.
@@ -93,9 +97,9 @@ source venv/bin/activate
 # 1. Coloque as planilhas na subpasta "Remanejados (Insira seu arquivo aqui)"
 #    de PASTA_WINDOWS, cada uma com a aba "Execucao".
 
-# 2. Arquiva a conferência anterior, consolida as entradas em
+# 2. Valida as entradas, arquiva a conferência anterior, consolida em
 #    "Conferencia/Conferencia Arquivo Robo DD.MM.xlsx" e move as entradas
-#    para "Realizados/Remanejamento Realizados".
+#    para "Realizados/Remanejamento Realizados". Só siga se o código de saída for 0.
 python consolida.py
 
 # 3. Traz o arquivo de conferência para PASTA_LINUX, loga no SIAFI, processa
@@ -105,6 +109,17 @@ python siafi_automacao/descentralizacao.py
 
 O resultado de cada operação fica na coluna `Progresso` do arquivo `Conferencia Arquivo Robo DD.MM.xlsx`. Linhas que já tenham `Progresso` preenchido são puladas. Rodando mais de uma vez no mesmo dia, os arquivos arquivados ganham ` (1)`, ` (2)`… para nada ser sobrescrito.
 
+### Quando a execução não vai até o fim
+
+| Onde parou | O que o robô faz | O que fazer |
+|---|---|---|
+| Na validação das planilhas | Lista todos os erros; nada é movido | Corrigir as planilhas e rodar de novo |
+| Antes de enviar a primeira linha (sem conexão, senha expirada, login recusado, `.env` incompleto) | Desfaz a consolidação: as planilhas voltam para `Remanejados` e a conferência anterior volta para `Conferencia` | Resolver o problema e rodar de novo |
+| No meio das linhas | Devolve a conferência para `Conferencia` com o que já foi feito. A linha em curso fica como `INTERROMPIDA - VERIFICAR NO SIAFI`; as seguintes ficam em branco | Conferir no SIAFI a linha marcada e rodar de novo **sem planilha nova**: o robô retoma as linhas em branco |
+| Janela fechada / computador desligado no meio | Na execução seguinte a conferência é trazida de volta da pasta local e retomada do mesmo jeito | Rodar de novo |
+
+Uma conferência interrompida só é retomada sozinha se tiver sido mexida nos últimos 7 dias (`RETOMADA_MAX_DIAS`) e se **não** houver planilha nova na pasta de entrada. Chegando planilha nova, a conferência antiga é arquivada e o robô avisa quantas linhas dela ficaram sem executar. Duas execuções ao mesmo tempo são recusadas (código de saída 10).
+
 ---
 
 ## Estrutura do projeto
@@ -112,19 +127,41 @@ O resultado de cada operação fica na coluna `Progresso` do arquivo `Conferenci
 ```
 siafi-automacao-descentralizacao/
 │
-├── consolida.py                      # Consolida as planilhas de "Remanejados" em "Conferencia"
+├── consolida.py                      # Valida e consolida as planilhas de "Remanejados" em "Conferencia"
 ├── siafi_automacao/
-│   ├── descentralizacao.py           # Login + processamento do consolidado (entrada principal)
-│   ├── fluxo_aprovar_desc.py         # Fluxo de aprovação no terminal SIAFI
-│   └── fluxo_anular_desc.py          # Fluxo de anulação no terminal SIAFI
+│   ├── descentralizacao.py           # Login + processamento da conferência (entrada principal)
+│   ├── fluxo_desc.py                 # Telas do SIAFI comuns à aprovação e à anulação
+│   ├── fluxo_aprovar_desc.py         # Aprovação: opção do menu e mensagens de recusa
+│   ├── fluxo_anular_desc.py          # Anulação: opção do menu e mensagens de recusa
+│   ├── validacao.py                  # Regras de preenchimento de uma linha
+│   ├── arquivos.py                   # Movimentação entre as pastas, manifesto e trava de execução
+│   └── emulador.py                   # Conexão, espera do teclado e leitura da tela do 3270
+├── tests/                            # Testes (pytest), com um SIAFI de mentira
 ├── data/                             # Pasta de trabalho local (PASTA_LINUX) durante o processamento
+├── Descentralizacao de Cota Orcamentaria.xlsx   # Planilha modelo
 ├── requirements.txt                  # Dependências Python
+├── requirements-dev.txt              # Dependências para rodar os testes
 ├── setup.sh                          # Provisionamento do ambiente Ubuntu/WSL
 ├── instalar.bat / instalar.ps1       # Instalação no Windows
 ├── robo.bat / robo.ps1               # Execução no dia a dia
+├── verificar.bat / .ps1 / .sh        # Diagnóstico do ambiente (não altera nada)
+├── instalador.nsi                    # Script NSIS que gera o Automação_Descentralização.exe
 ├── RUNBOOK.md                        # Manual passo a passo para o usuário final
+├── INSTALACAO_MANUAL.md              # Instalação à mão em máquina com proxy
 └── README.md                         # Este arquivo
 ```
+
+---
+
+## Testes
+
+```bash
+source venv/bin/activate
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Os testes não tocam no SIAFI, no `.env` nem nas pastas de verdade: usam pastas temporárias e um emulador falso (`tests/emulador_falso.py`). `tests/test_fluxos.py` trava, tecla a tecla, o que é digitado no terminal.
 
 ---
 
@@ -142,7 +179,7 @@ siafi-automacao-descentralizacao/
 ## Observações
 
 - O emulador `x3270` precisa estar instalado e disponível no PATH para o py3270 funcionar.
-- Em modo `visible=True` (padrão em `descentralizacao.py`) o script abre a janela gráfica do terminal — exige WSLg. Para rodar em segundo plano, altere para `visible=False` (usa o `s3270`).
+- Por padrão o robô abre a janela gráfica do terminal (`x3270`) — exige WSLg. Para rodar sem ela, coloque `SIAFI_VISIVEL=false` no `.env` (usa o `s3270`). Não altere o código para isso: um arquivo modificado localmente faz o `git pull` automático parar de funcionar.
 - O robô só funciona dentro da rede da SEPLAG (ou via VPN).
 
 ---

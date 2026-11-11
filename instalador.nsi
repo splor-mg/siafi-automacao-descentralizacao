@@ -8,8 +8,9 @@
 ;   2. extrai ali dentro o robo.bat e o robo.ps1
 ;   3. executa o robo.bat, que chama o robo.ps1, que dispara o fluxo no WSL
 ;
-; Ele NAO substitui o instalar.bat: em uma maquina sem WSL/Ubuntu configurado,
-; o robo.ps1 detecta a falta do .setup_done e orienta a rodar o instalar.bat.
+; Ele NAO instala nada: em uma maquina sem o ambiente pronto (WSL/Ubuntu,
+; repositorio, venv, .env), o robo.ps1 lista o que falta - a mesma checagem do
+; verificar.bat - e nao inicia o robo.
 ;
 ; ---------------------------------------------------------------------------
 ; COMO GERAR O .EXE (precisa ser no Windows)
