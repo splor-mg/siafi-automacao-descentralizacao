@@ -1,0 +1,4 @@
+# Os .bat sao executados pelo cmd.exe, inclusive direto da pasta do WSL
+# (\\wsl.localhost\...). Com fim de linha LF o cmd perde caracteres depois do
+# 'chcp 65001' e passa a nao reconhecer o comando da linha seguinte.
+*.bat text eol=crlf
