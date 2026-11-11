@@ -1,0 +1,16 @@
+# Aviso mostrado UMA vez na janela do robo.bat de cada órgão, na primeira
+# execução depois de o robô se atualizar sozinho.
+#
+# Para avisar de uma nova mudança, troque o texto abaixo: texto diferente
+# aparece de novo, uma vez, em cada computador. Escreva para quem usa o robô
+# (o que muda para eles e o que fazer), em poucas linhas de no máximo 76
+# caracteres. Linhas começadas por # não aparecem. Sem texto, sem aviso.
+
+O ROBÔ FOI ATUALIZADO
+
+- Se der erro antes de começar no SIAFI, suas planilhas voltam sozinhas
+  para a pasta "Remanejados". É só resolver o problema e rodar de novo.
+- Se ele parar no meio, rode de novo SEM colocar planilha nova: ele
+  continua de onde parou.
+- Linha marcada "INTERROMPIDA - VERIFICAR NO SIAFI": confira no SIAFI se a
+  operação entrou. O robô não refaz essa linha sozinho.

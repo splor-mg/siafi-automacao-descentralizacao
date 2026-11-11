@@ -118,7 +118,7 @@ O resultado de cada operação fica na coluna `Progresso` do arquivo `Conferenci
 | No meio das linhas | Devolve a conferência para `Conferencia` com o que já foi feito. A linha em curso fica como `INTERROMPIDA - VERIFICAR NO SIAFI`; as seguintes ficam em branco | Conferir no SIAFI a linha marcada e rodar de novo **sem planilha nova**: o robô retoma as linhas em branco |
 | Janela fechada / computador desligado no meio | Na execução seguinte a conferência é trazida de volta da pasta local e retomada do mesmo jeito | Rodar de novo |
 
-Uma conferência interrompida só é retomada sozinha se tiver sido mexida nos últimos 7 dias (`RETOMADA_MAX_DIAS`) e se **não** houver planilha nova na pasta de entrada. Chegando planilha nova, a conferência antiga é arquivada e o robô avisa quantas linhas dela ficaram sem executar. Duas execuções ao mesmo tempo são recusadas (código de saída 10).
+Só é retomada sozinha a conferência que o próprio robô devolveu interrompida (registrada em `data/.retomaveis`), se tiver sido mexida nos últimos 7 dias (`RETOMADA_MAX_DIAS`) e se **não** houver planilha nova na pasta de entrada. Uma conferência com linhas em branco que tenha ficado na pasta de outro jeito (deixada pela versão anterior do robô, por exemplo) não é executada sozinha: parte dessas linhas pode já estar no SIAFI. Chegando planilha nova, a conferência antiga é arquivada e o robô avisa quantas linhas dela ficaram sem executar. Duas execuções ao mesmo tempo são recusadas (código de saída 10).
 
 ---
 
@@ -135,10 +135,12 @@ siafi-automacao-descentralizacao/
 │   ├── fluxo_anular_desc.py          # Anulação: opção do menu e mensagens de recusa
 │   ├── validacao.py                  # Regras de preenchimento de uma linha
 │   ├── arquivos.py                   # Movimentação entre as pastas, manifesto e trava de execução
-│   └── emulador.py                   # Conexão, espera do teclado e leitura da tela do 3270
+│   ├── emulador.py                   # Conexão, espera do teclado e leitura da tela do 3270
+│   └── novidades.py                  # Aviso de atualização na janela, uma vez por computador
 ├── tests/                            # Testes (pytest), com um SIAFI de mentira
 ├── data/                             # Pasta de trabalho local (PASTA_LINUX) durante o processamento
 ├── Descentralizacao de Cota Orcamentaria.xlsx   # Planilha modelo
+├── NOVIDADES.txt                     # Aviso de atualização mostrado aos órgãos na janela do robô
 ├── requirements.txt                  # Dependências Python
 ├── requirements-dev.txt              # Dependências para rodar os testes
 ├── setup.sh                          # Provisionamento do ambiente Ubuntu/WSL
@@ -150,6 +152,16 @@ siafi-automacao-descentralizacao/
 ├── INSTALACAO_MANUAL.md              # Instalação à mão em máquina com proxy
 └── README.md                         # Este arquivo
 ```
+
+---
+
+## Avisar os órgãos sobre uma atualização
+
+Quem usa o robô são os órgãos, e a janela do `robo.bat` é o único canal com eles. Na primeira execução depois de o robô se atualizar, a janela mostra o texto do [NOVIDADES.txt](NOVIDADES.txt) por alguns segundos, uma vez só em cada computador.
+
+Para avisar de uma mudança, troque o texto desse arquivo no mesmo commit da mudança: texto diferente aparece de novo, uma vez, em cada computador (o registro fica em `data/.novidades_vistas`). Escreva para quem usa o robô, em poucas linhas de no máximo 76 caracteres; linhas começadas por `#` não aparecem, e arquivo sem texto não mostra aviso. Mudança que não afeta quem usa não precisa de aviso.
+
+O aviso é mostrado pelo `consolida.py`, e não pelo `robo.ps1`, porque o `robo.ps1` em execução é sempre o de antes do `git pull`.
 
 ---
 

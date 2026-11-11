@@ -15,6 +15,7 @@ E na pasta local do Linux (PASTA_LINUX, por padrão <repo>/data):
 
     em_processamento/    conferência enquanto o robô está no SIAFI
     .movidos             manifesto da última consolidação (ver abaixo)
+    .retomaveis          conferências que o robô devolveu interrompidas
 """
 
 import fcntl
@@ -32,6 +33,7 @@ SUB_REALIZADOS_CONFERENCIA = os.path.join('Realizados', 'Conferencia Realizados'
 
 SUB_EM_PROCESSAMENTO = 'em_processamento'
 NOME_MANIFESTO = '.movidos'
+NOME_RETOMAVEIS = '.retomaveis'
 
 # Aba das planilhas de entrada e da conferência
 ABA = 'Execucao'
@@ -257,23 +259,71 @@ def dias_parada(conferencia, agora=None):
     return int(max(0, agora - conferencia.modificada) // 86400)
 
 
-def escolher_para_processar(conferencias, agora=None):
+def escolher_para_processar(conferencias, agora=None, permitidas=None):
     """Entre as conferências listadas, a que o robô deve processar agora, ou
     None.
 
-    É a mais recente que tem linha pendente e foi mexida há no máximo
-    retomada_max_dias() — seja a que o consolida.py acabou de gerar, seja a de
-    uma execução interrompida que está sendo retomada.
+    É a mais recente que tem linha pendente, foi mexida há no máximo
+    retomada_max_dias() e está em 'permitidas' (caminhos absolutos; None = sem
+    esse filtro) — seja a que o consolida.py acabou de gerar, seja a de uma
+    execução interrompida que está sendo retomada (ver retomaveis()).
     """
     limite = retomada_max_dias()
     candidatas = [c for c in conferencias
-                  if c.pendentes > 0 and dias_parada(c, agora) <= limite]
+                  if c.pendentes > 0 and dias_parada(c, agora) <= limite
+                  and (permitidas is None or os.path.abspath(c.caminho) in permitidas)]
     return max(candidatas, key=lambda c: c.modificada) if candidatas else None
 
 
-def conferencia_a_processar(pasta, agora=None):
+def conferencia_a_processar(pasta, agora=None, permitidas=None):
     """O mesmo que escolher_para_processar(), lendo a pasta."""
-    return escolher_para_processar(listar_conferencias(pasta), agora)
+    return escolher_para_processar(listar_conferencias(pasta), agora, permitidas)
+
+
+# ---------------------------------------------------------------------------
+# Conferências que podem ser retomadas sem planilha nova
+#
+# Só a que ESTE robô devolveu interrompida. Uma conferência que tenha ficado
+# na pasta "Conferencia" de outro jeito (deixada pela versão anterior, que não
+# marcava a linha em curso, ou mexida à mão) pode ter linhas em branco que já
+# estão no SIAFI — inclusive lançadas à mão pelo órgão depois de uma falha — e
+# executá-la sozinha duplicaria a operação.
+# ---------------------------------------------------------------------------
+
+def retomaveis(registro):
+    """Os caminhos (absolutos) das conferências que o robô devolveu
+    interrompidas."""
+    try:
+        with open(registro, encoding='utf-8') as f:
+            return {linha.strip() for linha in f if linha.strip()}
+    except OSError:
+        return set()
+
+
+def marcar_retomavel(registro, caminho):
+    caminho = os.path.abspath(caminho)
+    if caminho in retomaveis(registro):
+        return
+    try:
+        os.makedirs(os.path.dirname(registro), exist_ok=True)
+        with open(registro, 'a', encoding='utf-8') as f:
+            f.write(caminho + '\n')
+    except OSError as e:
+        print(f"[aviso] não consegui registrar '{os.path.basename(caminho)}' "
+              f"para ser retomada ({e}): ela não será continuada sozinha.")
+
+
+def desmarcar_retomavel(registro, caminho):
+    """A conferência foi até o fim: não há mais o que retomar nela."""
+    caminho = os.path.abspath(caminho)
+    atuais = retomaveis(registro)
+    if caminho not in atuais:
+        return
+    try:
+        with open(registro, 'w', encoding='utf-8') as f:
+            f.writelines(c + '\n' for c in sorted(atuais - {caminho}))
+    except OSError:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -391,9 +441,10 @@ def desfazer_consolidacao(manifesto, conferencia_atual=None):
 # Conferência que ficou para trás na pasta local
 # ---------------------------------------------------------------------------
 
-def recuperar_interrompidas(pasta_em_processamento, pasta_conferencia):
+def recuperar_interrompidas(pasta_em_processamento, pasta_conferencia, registro=None):
     """Devolve para "Conferencia" o que uma execução anterior deixou na pasta
-    local. Devolve a lista de caminhos devolvidos.
+    local, registrando-a para ser retomada. Devolve a lista de caminhos
+    devolvidos.
 
     Acontece quando a janela do robô é fechada no meio (ou o computador
     desliga): o processo morre sem chance de devolver a planilha, e ela ficava
@@ -414,5 +465,7 @@ def recuperar_interrompidas(pasta_em_processamento, pasta_conferencia):
                   f"execução interrompida continua em '{caminho}': {e}")
             continue
         print(f"Conferência de uma execução interrompida devolvida para: {destino}")
+        if registro:
+            marcar_retomavel(registro, destino)
         devolvidas.append(destino)
     return devolvidas

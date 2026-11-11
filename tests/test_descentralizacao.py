@@ -172,8 +172,8 @@ def test_env_incompleto_para_antes_de_abrir_o_siafi(projeto, capsys):
 def test_conferencia_aberta_no_excel_nao_deixa_duas_copias(projeto, monkeypatch, capsys):
     """Com a planilha aberta, a cópia vai e o original não sai. Duas cópias da
     mesma conferência fariam as mesmas linhas serem enviadas duas vezes."""
-    escrever_planilha(projeto.conferencia / 'interrompida.xlsx',
-                      [linha(Progresso='Ok - 1'), linha()])
+    projeto.interrompida(escrever_planilha(projeto.conferencia / 'interrompida.xlsx',
+                                           [linha(Progresso='Ok - 1'), linha()]))
 
     def copia_e_nao_apaga(origem, destino, **kwargs):
         arquivos.shutil.copyfile(origem, destino)
@@ -206,6 +206,8 @@ def test_erro_no_meio_devolve_a_conferencia_com_o_que_foi_feito(projeto, capsys)
     with pytest.raises(CommandError):
         executar(projeto.cfg, Fabrica(em))
 
+    assert projeto.retomaveis() == {str(conferencia_gerada(projeto))}
+
     assert projeto.progresso(conferencia_gerada(projeto)) == [
         'Ok - 2026000001', PROGRESSO_INCERTO, '']
     assert projeto.nomes(projeto.em_processamento) == []
@@ -230,6 +232,7 @@ def test_execucao_seguinte_continua_de_onde_parou_sem_repetir_linha(projeto):
         'Ok - 2026000001', PROGRESSO_INCERTO, 'Ok - 2026000003']
     valores = [c[3] for c in em.digitado() if c[:3] == ('fill_field', 17, 63)]
     assert valores == ['30000']                 # só a linha que faltava
+    assert projeto.retomaveis() == set()        # foi até o fim: nada a retomar
 
 
 def test_linha_em_curso_fica_marcada_no_arquivo_antes_de_ir_ao_siafi(projeto):
@@ -268,8 +271,8 @@ def test_janela_fechada_no_meio_e_recuperada_na_execucao_seguinte(projeto):
 
 
 def test_falha_antes_de_enviar_numa_retomada_devolve_a_conferencia_intacta(projeto):
-    escrever_planilha(projeto.conferencia / 'interrompida.xlsx',
-                      [linha(Progresso='Ok - 1'), linha()])
+    projeto.interrompida(escrever_planilha(projeto.conferencia / 'interrompida.xlsx',
+                                           [linha(Progresso='Ok - 1'), linha()]))
     sem_rede = [EmuladorFalso(falha_ao_conectar=CommandError('timeout'))
                 for _ in range(2)]
 
@@ -319,8 +322,8 @@ def test_falha_ao_devolver_deixa_a_planilha_para_a_proxima_execucao(projeto, mon
 
 def test_linha_invalida_na_conferencia_e_marcada_e_nao_vai_ao_siafi(projeto):
     """A pessoa pode ter mexido na conferência entre uma execução e outra."""
-    escrever_planilha(projeto.conferencia / 'interrompida.xlsx', [
-        linha(Progresso='Ok - 1'), linha(valor='abc'), linha(valor=300)])
+    projeto.interrompida(escrever_planilha(projeto.conferencia / 'interrompida.xlsx', [
+        linha(Progresso='Ok - 1'), linha(valor='abc'), linha(valor=300)]))
     em = EmuladorFalso(roteiro_login() + roteiro_linha_ok('2026000003'))
 
     assert executar(projeto.cfg, Fabrica(em)) == 0
@@ -329,6 +332,19 @@ def test_linha_invalida_na_conferencia_e_marcada_e_nao_vai_ao_siafi(projeto):
     assert feito == 'Ok - 1'
     assert invalida.startswith('Linha inválida: Valor deve conter um número')
     assert enviada == 'Ok - 2026000003'
+
+
+def test_conferencia_pendente_que_o_robo_nao_interrompeu_nao_vai_ao_siafi(projeto):
+    """Deixada pela versão anterior, ou mexida à mão: linhas em branco podem já
+    estar no SIAFI."""
+    deixada = escrever_planilha(projeto.conferencia / 'deixada.xlsx',
+                                [linha(Progresso='Ok - 1'), linha()])
+    fabrica = Fabrica()
+
+    assert executar(projeto.cfg, fabrica) == 0
+
+    assert fabrica.criados == []
+    assert projeto.progresso(deixada) == ['Ok - 1', '']
 
 
 def test_nada_pendente_nao_abre_o_siafi(projeto):

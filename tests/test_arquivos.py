@@ -132,6 +132,35 @@ def test_limite_da_retomada_vem_do_env_na_hora_do_uso(tmp_path, monkeypatch):
     assert arquivos.conferencia_a_processar(str(tmp_path)) is None
 
 
+def test_so_escolhe_entre_as_permitidas(tmp_path):
+    permitida = escrever_planilha(tmp_path / 'permitida.xlsx', [linha()])
+    outra = escrever_planilha(tmp_path / 'outra.xlsx', [linha()])
+    envelhecer(permitida, 1)          # a outra é mais recente, mas não pode
+
+    escolhida = arquivos.conferencia_a_processar(
+        str(tmp_path), permitidas={str(permitida)})
+
+    assert escolhida.caminho == str(permitida)
+    assert arquivos.conferencia_a_processar(str(tmp_path), permitidas=set()) is None
+    assert outra.exists()
+
+
+def test_registro_de_retomaveis_marca_desmarca_e_nao_repete(tmp_path):
+    registro = str(tmp_path / 'data' / arquivos.NOME_RETOMAVEIS)
+    a, b = str(tmp_path / 'a.xlsx'), str(tmp_path / 'b.xlsx')
+
+    assert arquivos.retomaveis(registro) == set()
+    arquivos.marcar_retomavel(registro, a)
+    arquivos.marcar_retomavel(registro, a)
+    arquivos.marcar_retomavel(registro, b)
+    assert arquivos.retomaveis(registro) == {a, b}
+    assert len(open(registro, encoding='utf-8').read().splitlines()) == 2
+
+    arquivos.desmarcar_retomavel(registro, a)
+    arquivos.desmarcar_retomavel(registro, str(tmp_path / 'nunca-marcada.xlsx'))
+    assert arquivos.retomaveis(registro) == {b}
+
+
 def test_conferencia_toda_feita_nao_e_escolhida(tmp_path):
     escrever_planilha(tmp_path / 'feita.xlsx', [linha(Progresso='Ok')])
 
@@ -236,11 +265,14 @@ def test_recupera_a_conferencia_deixada_na_pasta_local(tmp_path):
     conferencia.mkdir()
     (em_processamento / 'Conferencia 11.11.xlsx').write_text('parcial')
 
+    registro = str(tmp_path / 'data' / arquivos.NOME_RETOMAVEIS)
+
     devolvidas = arquivos.recuperar_interrompidas(str(em_processamento),
-                                                  str(conferencia))
+                                                  str(conferencia), registro)
 
     assert devolvidas == [str(conferencia / 'Conferencia 11.11.xlsx')]
     assert list(em_processamento.iterdir()) == []
+    assert arquivos.retomaveis(registro) == set(devolvidas)
 
 
 def test_recuperar_sem_pasta_local_nao_quebra(tmp_path):

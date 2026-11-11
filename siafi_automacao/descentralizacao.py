@@ -481,13 +481,21 @@ def _executar(cfg, criar_emulador):
     pasta_local = cfg['pasta_local']
     pasta_em_processamento = os.path.join(pasta_local, arquivos.SUB_EM_PROCESSAMENTO)
     manifesto = os.path.join(pasta_local, arquivos.NOME_MANIFESTO)
+    registro = os.path.join(pasta_local, arquivos.NOME_RETOMAVEIS)
 
     os.makedirs(pasta_em_processamento, exist_ok=True)
-    arquivos.recuperar_interrompidas(pasta_em_processamento, pasta_conferencia)
+    arquivos.recuperar_interrompidas(pasta_em_processamento, pasta_conferencia, registro)
 
-    escolhida = arquivos.conferencia_a_processar(pasta_conferencia)
+    # Só vai ao SIAFI a conferência que a consolidação acabou de gerar ou uma
+    # que este robô devolveu interrompida (ver retomaveis em arquivos.py).
+    conferencia_do_manifesto, _ = arquivos.ler_manifesto(manifesto)
+    permitidas = arquivos.retomaveis(registro)
+    if conferencia_do_manifesto:
+        permitidas.add(os.path.abspath(conferencia_do_manifesto))
+
+    escolhida = arquivos.conferencia_a_processar(pasta_conferencia, permitidas=permitidas)
     if escolhida is None:
-        print(f'Nenhuma conferência com linhas pendentes em "{pasta_conferencia}". '
+        print(f'Nenhuma conferência para processar em "{pasta_conferencia}". '
               f'Nada a fazer.')
         return 0
 
@@ -497,7 +505,6 @@ def _executar(cfg, criar_emulador):
 
     # A conferência foi gerada pela consolidação desta execução? Só nesse caso
     # dá para desfazer tudo se o robô parar antes de enviar alguma linha.
-    conferencia_do_manifesto, _ = arquivos.ler_manifesto(manifesto)
     recem_criada = (conferencia_do_manifesto is not None and
                     os.path.abspath(conferencia_do_manifesto)
                     == os.path.abspath(escolhida.caminho))
@@ -638,6 +645,7 @@ def _executar(cfg, criar_emulador):
         formatar_arquivo(caminho_local)
         arquivos.mover(caminho_local, caminho_destino)
         arquivos.descartar_manifesto(manifesto)
+        arquivos.desmarcar_retomavel(registro, caminho_destino)
         _resumir(df)
         print(f"Planilha com o resultado em: {caminho_destino}")
         return 0
@@ -668,6 +676,9 @@ def _executar(cfg, criar_emulador):
             if not enviou:
                 print('NADA foi enviado ao SIAFI nesta execução.')
             if df is not None and bool(df['Progresso'].map(vazio).any()):
+                # Devolvida por este robô com a linha em curso marcada: é seguro
+                # continuar sozinho na próxima execução sem planilha nova.
+                arquivos.marcar_retomavel(registro, caminho_destino)
                 print('As linhas com a coluna Progresso em branco ainda não foram '
                       'feitas: resolva o problema acima e rode o robô de novo para '
                       'continuar de onde parou.')

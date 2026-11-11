@@ -73,6 +73,7 @@ for f in \
     siafi_automacao/arquivos.py \
     siafi_automacao/emulador.py \
     siafi_automacao/validacao.py \
+    siafi_automacao/novidades.py \
     requirements.txt
 do
     if [ -f "$REPO_DIR/$f" ]; then ok "$f"; else erro "faltando: $f"; fi

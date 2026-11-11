@@ -148,9 +148,9 @@ def test_sem_planilha_e_sem_pendencia_nao_ha_o_que_fazer(projeto):
 def test_sem_planilha_nova_retoma_a_conferencia_interrompida(projeto, capsys):
     """Sem isto a execução seguinte dizia 'nada a consolidar' e as linhas por
     fazer ficavam presas até alguém refazer a planilha à mão."""
-    escrever_planilha(projeto.conferencia / 'interrompida.xlsx', [
+    projeto.interrompida(escrever_planilha(projeto.conferencia / 'interrompida.xlsx', [
         linha(Progresso='Ok - 1'), linha(Progresso='INTERROMPIDA - VERIFICAR NO SIAFI'),
-        linha()])
+        linha()]))
 
     assert rodar(projeto) == 0
 
@@ -159,11 +159,25 @@ def test_sem_planilha_nova_retoma_a_conferencia_interrompida(projeto, capsys):
 
 
 def test_conferencia_antiga_nao_e_retomada_e_o_motivo_e_dito(projeto, capsys):
-    antiga = escrever_planilha(projeto.conferencia / 'antiga.xlsx', [linha()])
+    antiga = projeto.interrompida(
+        escrever_planilha(projeto.conferencia / 'antiga.xlsx', [linha()]))
     envelhecer(antiga, 30)
 
     assert rodar(projeto) == 2
     assert 'NÃO é retomada' in capsys.readouterr().out
+
+
+def test_conferencia_pendente_deixada_pela_versao_antiga_nao_e_executada(projeto, capsys):
+    """A versão anterior não marcava a linha em curso: uma linha em branco
+    pode já estar no SIAFI, ou ter sido lançada à mão pelo órgão depois de uma
+    falha. Retomar sozinho duplicaria a operação."""
+    deixada = escrever_planilha(projeto.conferencia / 'Conferencia Arquivo Robo 10.11.xlsx',
+                                [linha(Progresso='Ok - 1'), linha()])
+
+    assert rodar(projeto) == 2
+
+    assert projeto.progresso(deixada) == ['Ok - 1', '']
+    assert 'NÃO é executada sozinha' in capsys.readouterr().out
 
 
 # --- falha no meio da consolidação ---------------------------------------------
@@ -218,6 +232,7 @@ def test_conferencia_deixada_na_pasta_local_volta_e_e_retomada(projeto):
 
     assert projeto.nomes(projeto.conferencia) == ['Conferencia Arquivo Robo 11.11.xlsx']
     assert projeto.nomes(projeto.em_processamento) == []
+    assert projeto.retomaveis() == {str(projeto.conferencia / 'Conferencia Arquivo Robo 11.11.xlsx')}
 
 
 def test_arquivo_solto_de_versao_antiga_na_pasta_local_nao_e_tocado(projeto):

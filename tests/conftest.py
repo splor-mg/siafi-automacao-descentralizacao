@@ -18,6 +18,9 @@ from validacao import COLUNAS_CONFERENCIA
 def isolamento(tmp_path, monkeypatch):
     # Trava própria: não disputa com um robô rodando de verdade nesta máquina.
     monkeypatch.setenv('SIAFI_LOCK', str(tmp_path / 'robo.lock'))
+    # Pasta local própria: o consolida.main() grava nela o registro das
+    # novidades vistas, e não pode mexer no data/ de verdade.
+    monkeypatch.setenv('PASTA_LINUX', str(tmp_path / 'data'))
     # Os fluxos e o login dormem entre as telas; no teste isso só atrasa.
     monkeypatch.setattr(time, 'sleep', lambda _segundos: None)
     monkeypatch.setenv('MOVER_TENTATIVAS', '2')
@@ -37,6 +40,7 @@ class Projeto:
         self.realizados_conf = self.windows / arquivos.SUB_REALIZADOS_CONFERENCIA
         self.em_processamento = self.local / arquivos.SUB_EM_PROCESSAMENTO
         self.manifesto = self.local / arquivos.NOME_MANIFESTO
+        self.registro = self.local / arquivos.NOME_RETOMAVEIS
         for pasta in (self.remanejados, self.conferencia, self.realizados_rem,
                       self.realizados_conf, self.local):
             pasta.mkdir(parents=True)
@@ -54,6 +58,15 @@ class Projeto:
             'visivel': False,
             'conexao_tentativas': 2,
         }
+
+    def interrompida(self, caminho):
+        """Registra a conferência como devolvida interrompida pelo robô — o
+        estado em que ela pode ser retomada sem planilha nova."""
+        arquivos.marcar_retomavel(str(self.registro), str(caminho))
+        return caminho
+
+    def retomaveis(self):
+        return arquivos.retomaveis(str(self.registro))
 
     def nomes(self, pasta):
         return sorted(p.name for p in pasta.iterdir() if p.is_file())

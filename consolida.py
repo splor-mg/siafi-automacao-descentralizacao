@@ -33,9 +33,13 @@ aberta no Excel, por exemplo), tudo volta para o lugar. O descentralizacao.py
 usa o mesmo manifesto para desfazer a consolidação quando para antes de enviar
 qualquer linha ao SIAFI.
 
-Sem planilha nova na pasta de entrada, a conferência que ficou com linhas por
-fazer (execução interrompida) é retomada: o código 0 abaixo vale também para
-esse caso.
+Sem planilha nova na pasta de entrada, a conferência que o robô devolveu
+interrompida, com linhas por fazer, é retomada: o código 0 abaixo vale também
+para esse caso. Conferência pendente que não veio de uma interrupção do robô
+(deixada pela versão anterior, por exemplo) não é executada sozinha.
+
+Antes de tudo, mostra uma vez o aviso da última atualização do robô
+(NOVIDADES.txt, ver siafi_automacao/novidades.py).
 
 Códigos de saída (lidos pelo robo.ps1, que só inicia o robô quando o código é 0):
 
@@ -56,10 +60,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE_DIR, 'siafi_automacao'))
 
 import arquivos  # noqa: E402
+import novidades  # noqa: E402
 from validacao import (  # noqa: E402
     COLUNAS_CONFERENCIA, COLUNAS_OBRIGATORIAS, formatar_encontrado,
     validar_linha, vazio,
 )
+
+# Aviso mostrado uma vez na janela do robô depois de cada atualização (ver novidades.py)
+ARQUIVO_NOVIDADES = os.path.join(BASE_DIR, 'NOVIDADES.txt')
 
 # Planilhas que o robô não lê. O .xls (Excel 97-2003) é erro; os demais são
 # só avisados, porque podem ser arquivos de apoio que a pessoa guarda na pasta.
@@ -188,9 +196,10 @@ def desfazer_consolidacao_nao_executada(manifesto):
               'foi desfeita e as planilhas voltaram para a fila.')
 
 
-def sem_planilha_nova(pasta_remanejados, conferencias):
-    """Pasta de entrada vazia: retoma a conferência interrompida, se houver."""
-    retomar = arquivos.escolher_para_processar(conferencias)
+def sem_planilha_nova(pasta_remanejados, conferencias, permitidas):
+    """Pasta de entrada vazia: retoma a conferência que o robô devolveu
+    interrompida, se houver ('permitidas', ver arquivos.retomaveis)."""
+    retomar = arquivos.escolher_para_processar(conferencias, permitidas=permitidas)
     if retomar is not None:
         print(f'Nenhuma planilha nova em "{pasta_remanejados}".')
         print(f"Retomando a conferência '{os.path.basename(retomar.caminho)}': "
@@ -199,12 +208,21 @@ def sem_planilha_nova(pasta_remanejados, conferencias):
 
     print(f'Nenhuma planilha em "{pasta_remanejados}". Nada a consolidar.')
     for c in conferencias:
-        if c.pendentes:
-            print(f"[aviso] '{os.path.basename(c.caminho)}' tem {c.pendentes} "
-                  f"linha(s) sem Progresso, mas está parada há "
-                  f"{arquivos.dias_parada(c)} dia(s) e por isso NÃO é retomada "
-                  f"sozinha (limite: {arquivos.retomada_max_dias()} dias). Se ainda "
-                  f"precisar dessas linhas, coloque-as numa planilha nova.")
+        if not c.pendentes:
+            continue
+        nome = os.path.basename(c.caminho)
+        if os.path.abspath(c.caminho) not in permitidas:
+            print(f"[aviso] '{nome}' tem {c.pendentes} linha(s) sem Progresso, "
+                  f"mas não foi devolvida assim por uma interrupção do robô e por "
+                  f"isso NÃO é executada sozinha: parte dessas linhas pode já estar "
+                  f"no SIAFI. Confira no SIAFI e, se ainda precisar delas, "
+                  f"coloque-as numa planilha nova.")
+        else:
+            print(f"[aviso] '{nome}' tem {c.pendentes} linha(s) sem Progresso, "
+                  f"mas está parada há {arquivos.dias_parada(c)} dia(s) e por "
+                  f"isso NÃO é retomada sozinha (limite: "
+                  f"{arquivos.retomada_max_dias()} dias). Se ainda precisar "
+                  f"dessas linhas, coloque-as numa planilha nova.")
     return 2
 
 
@@ -232,11 +250,12 @@ def _consolidar(pasta_windows, pasta_local):
     pasta_realizados_conf = os.path.join(pasta_windows, arquivos.SUB_REALIZADOS_CONFERENCIA)
     pasta_em_processamento = os.path.join(pasta_local, arquivos.SUB_EM_PROCESSAMENTO)
     manifesto = os.path.join(pasta_local, arquivos.NOME_MANIFESTO)
+    registro = os.path.join(pasta_local, arquivos.NOME_RETOMAVEIS)
 
     # -----------------------------------------------------------------
     # 0. Arruma o que uma execução anterior deixou pela metade.
     # -----------------------------------------------------------------
-    arquivos.recuperar_interrompidas(pasta_em_processamento, pasta_conferencia)
+    arquivos.recuperar_interrompidas(pasta_em_processamento, pasta_conferencia, registro)
     desfazer_consolidacao_nao_executada(manifesto)
 
     # -----------------------------------------------------------------
@@ -251,7 +270,8 @@ def _consolidar(pasta_windows, pasta_local):
 
     if not arquivos_origem and not antigas:
         return sem_planilha_nova(pasta_remanejados,
-                                 arquivos.listar_conferencias(pasta_conferencia))
+                                 arquivos.listar_conferencias(pasta_conferencia),
+                                 arquivos.retomaveis(registro))
 
     blocos = []
     todos_erros = [
@@ -350,6 +370,14 @@ def main():
     load_dotenv(os.path.join(BASE_DIR, '.env'), encoding='utf-8-sig')
     pasta_windows = os.getenv('PASTA_WINDOWS')
     pasta_local = os.getenv('PASTA_LINUX') or os.path.join(BASE_DIR, 'data')
+
+    # Primeira coisa da janela: o consolida.py é o primeiro passo depois do
+    # git pull em qualquer versão do lançador.
+    try:
+        novidades.mostrar(ARQUIVO_NOVIDADES,
+                          os.path.join(pasta_local, novidades.NOME_MARCADOR))
+    except Exception as e:
+        print(f'[aviso] não consegui mostrar o aviso de atualização: {e}')
 
     if not pasta_windows:
         print('[ERRO] PASTA_WINDOWS não configurada no .env.')

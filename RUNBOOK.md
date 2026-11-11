@@ -44,6 +44,7 @@ O robô só funciona dentro da rede da SEPLAG.
 
 - Uma **janela preta** vai abrir na tela. É normal. **Não feche.**
 - A primeira coisa que ela mostra é `Atualizando o robo...` — o robô se atualiza sozinho com a versão mais recente antes de rodar. É normal.
+- Se o robô tiver sido atualizado desde a última vez, aparece um aviso **"O ROBÔ FOI ATUALIZADO"** dizendo o que mudou. Ele fica alguns segundos na tela e depois o robô continua sozinho. Aparece uma vez só.
 - Pode abrir também a **tela do SIAFI** (um terminal). **Não feche e não clique nessa tela** — é o robô "digitando" sozinho.
 - Primeiro o robô confere e junta todas as planilhas da pasta `Remanejados` em uma só e a coloca na pasta `Conferencia`. Se encontrar algum erro de preenchimento, ele **para aqui**, lista os erros e não mexe em nada (veja "Quando algo dá errado").
 - Em seguida ele entra no SIAFI e faz cada linha, uma por uma. Na janela preta vão aparecendo os resultados.
@@ -216,7 +217,7 @@ Pode acontecer se a conexão cair, se o SIAFI sair do ar ou se a janela do robô
 >
 > Se você colocar uma planilha **nova** antes de terminar a que foi interrompida, o robô processa só a nova, arquiva a antiga e **avisa quantas linhas dela ficaram sem fazer**. Prefira terminar a interrompida primeiro.
 >
-> O robô só retoma sozinho uma conferência interrompida nos últimos **7 dias**. Depois disso, coloque as linhas que faltam em uma planilha nova.
+> O robô só retoma sozinho uma conferência que **ele mesmo** devolveu interrompida nos últimos **7 dias**. Fora disso, ele avisa e não faz nada: confira no SIAFI e coloque as linhas que faltam em uma planilha nova.
 
 ## Apareceu "Ja existe uma execucao do robo em andamento"
 
